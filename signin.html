@@ -204,7 +204,7 @@ async function doSignin(){
       showToast('Welcome back, '+user.name+'!','success');
       setTimeout(()=>window.location.href='dashboard.html',900);
     } else {
-      const u = {id:data.user.id,email:data.user.email,name:data.user.user_metadata?.name||email.split('@')[0],plan:'free'};
+      const u = {id:data.user.id,email:data.user.email,name:data.user.user_metadata?.name||email.split('@')[0],plan:data.user.user_metadata?.plan||'free'};
       saveCurrentUser(u);
       showToast('Welcome back!','success');
       setTimeout(()=>window.location.href='dashboard.html',900);
