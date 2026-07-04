@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Panel — FineInvoice</title>
+<link rel="stylesheet" href="css/theme.css">
+<style>
+.admin-gate { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
+.admin-login { background: white; border-radius: var(--radius-lg); padding: 48px; width: 100%; max-width: 400px; box-shadow: var(--shadow-lg); text-align: center; }
+.admin-login .icon { font-size: 48px; margin-bottom: 16px; }
+.admin-login h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.admin-login p  { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.sub-section-head { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<!-- Admin Gate -->
+<div class="admin-gate" id="adminGate">
+  <div class="admin-login">
+    <div class="icon">🔐</div>
+    <h2>Admin Panel</h2>
+    <p>This area is restricted. Enter admin password to continue.</p>
+    <div class="form-group">
+      <input class="form-input" id="adminPass" type="password" placeholder="Admin password" style="text-align:center">
+    </div>
+    <button class="btn btn-primary w-full" onclick="checkAdmin()" style="margin-top:8px">Access Admin →</button>
+  </div>
+</div>
+
+<!-- Admin Panel (hidden until authenticated) -->
+<div class="app-layout" id="adminPanel" style="display:none">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <img src="logo.jpg" alt="FineInvoice" style="width:38px;height:38px;border-radius:10px;object-fit:cover;">
+        <div class="logo-text">FineInvoice</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html"><span class="nav-icon">🏠</span>Dashboard</a>
+      <a href="app.html"><span class="nav-icon">✏️</span>New Invoice</a>
+      <a href="invoices.html"><span class="nav-icon">📋</span>Invoices</a>
+      <a href="customers.html"><span class="nav-icon">👥</span>Customers</a>
+      <a href="payment.html"><span class="nav-icon">💳</span>Billing</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">🔧 Admin Panel</span>
+      <div class="topbar-right">
+        <span class="badge" style="background:var(--coral-l);color:var(--coral)">Admin</span>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Stats -->
+      <div class="stat-grid mb-6">
+        <div class="stat-card violet">
+          <div class="stat-icon">👤</div>
+          <div class="stat-label">Registered Users</div>
+          <div class="stat-value" id="statUsers">0</div>
+        </div>
+        <div class="stat-card mint">
+          <div class="stat-icon">👥</div>
+          <div class="stat-label">Total Customers</div>
+          <div class="stat-value" id="statCustomers">0</div>
+        </div>
+        <div class="stat-card coral">
+          <div class="stat-icon">📄</div>
+          <div class="stat-label">Total Invoices</div>
+          <div class="stat-value" id="statInvoices">0</div>
+        </div>
+        <div class="stat-card amber">
+          <div class="stat-icon">⭐</div>
+          <div class="stat-label">Active License</div>
+          <div class="stat-value" id="statLicense" style="font-size:20px;padding-top:6px">FREE</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+        <!-- Users -->
+        <div class="card card-pad">
+          <div class="sub-section-head">👤 Registered Users</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>Plan</th></tr></thead>
+              <tbody id="usersTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Payments -->
+        <div class="card card-pad">
+          <div class="sub-section-head">💳 License & Payment</div>
+          <div id="licenseInfo" style="font-size:14px"></div>
+
+          <div style="margin-top:20px">
+            <div class="sub-section-head">📨 Payment Submissions</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Verify the transaction yourself (check your EasyPaisa/JazzCash/PayPal), then click "Verify & Get Code" — a one-time code is generated. Copy it and send it to the customer's WhatsApp number manually.</div>
+            <div id="submissionsList" style="font-size:14px;display:flex;flex-direction:column;gap:10px"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Danger zone -->
+      <div class="card card-pad mt-6" style="border-color:var(--coral)">
+        <div class="sub-section-head" style="color:var(--coral)">⚠️ Danger Zone</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-danger" onclick="clearAllData()">🗑️ Clear All Data</button>
+          <button class="btn btn-ghost" onclick="exportData()">📤 Export JSON</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/utils.js"></script>
+<script>
+const ADMIN_PASS = 'admin123';
+
+function checkAdmin(){
+  const pass = document.getElementById('adminPass').value;
+  if(pass === ADMIN_PASS){
+    document.getElementById('adminGate').style.display  = 'none';
+    document.getElementById('adminPanel').style.display = 'flex';
+    loadAdminData();
+  } else {
+    showToast('Incorrect password', 'error');
+  }
+}
+
+document.getElementById('adminPass').addEventListener('keydown', e => { if(e.key==='Enter') checkAdmin(); });
+
+async function loadAdminData(){
+  const users     = getUsers();
+  const customers = getCustomers();
+  const invoices  = getInvoices();
+  const license   = getLicense();
+
+  document.getElementById('statUsers').textContent     = users.length;
+  document.getElementById('statCustomers').textContent = customers.length;
+  document.getElementById('statInvoices').textContent  = invoices.length;
+  document.getElementById('statLicense').textContent   = (license.plan || 'FREE').toUpperCase();
+
+  // Users table
+  document.getElementById('usersTable').innerHTML = users.length
+    ? users.map(u => `<tr>
+        <td><strong>${u.name||'—'}</strong></td>
+        <td style="font-size:13px;color:var(--muted)">${u.email||'—'}</td>
+        <td><span class="badge badge-${u.plan==='lifetime'?'lifetime':u.plan==='single'?'single':'free'}">${(u.plan||'free').toUpperCase()}</span></td>
+      </tr>`).join('')
+    : '<tr><td colspan="3" style="color:var(--muted);font-size:13px">No users registered</td></tr>';
+
+  // License
+  document.getElementById('licenseInfo').innerHTML = license.plan
+    ? `<div style="display:flex;flex-direction:column;gap:8px">
+        <div><strong>Plan:</strong> ${license.plan.toUpperCase()}</div>
+        <div><strong>Code:</strong> <span class="mono">${license.code||license.txn||'—'}</span></div>
+        <div><strong>Activated:</strong> ${license.activatedAt ? new Date(license.activatedAt).toLocaleString() : '—'}</div>
+      </div>`
+    : '<p style="color:var(--muted)">No active license found.</p>';
+
+  // Payment submissions (from Supabase — visible regardless of which device the customer used)
+  const { data: subs, error: subsError } = await getAllSubmissions();
+  if(subsError){
+    document.getElementById('submissionsList').innerHTML =
+      `<p style="color:var(--coral);font-size:13px">⚠️ Could not load submissions: ${typeof subsError === 'string' ? subsError : (subsError.message || JSON.stringify(subsError))}</p>`;
+    return;
+  }
+  const statusStyle = {
+    pending:  { bg:'var(--amber-l)',  border:'#FFD9A0', label:'⏳ PENDING' },
+    verified: { bg:'var(--mint-l)',   border:'#b6f5e0', label:'✅ VERIFIED — code sent' },
+    used:     { bg:'var(--border)',   border:'var(--border)', label:'☑️ USED' }
+  };
+  document.getElementById('submissionsList').innerHTML = subs.length
+    ? subs.map(sub => {
+        const st = statusStyle[sub.status] || statusStyle.pending;
+        return `<div style="background:${st.bg};border:1px solid ${st.border};border-radius:10px;padding:12px 16px;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${(sub.plan||'').toUpperCase()} — ${sub.method}</strong>
+            <span style="font-size:12px;font-weight:700">${st.label}</span>
+          </div>
+          <div><strong>Name/Email:</strong> ${sub.name||'—'} (${sub.email||'—'})</div>
+          <div><strong>Transaction ID:</strong> <span class="mono">${sub.txn}</span></div>
+          <div><strong>WhatsApp:</strong> ${sub.whatsapp}</div>
+          <div><strong>Submitted:</strong> ${new Date(sub.submitted_at).toLocaleString()}</div>
+          ${sub.status === 'pending'
+            ? `<button class="btn btn-primary btn-sm" style="margin-top:6px;width:fit-content" onclick="issueCode('${sub.id}')">🔑 Verify &amp; Get Code</button>`
+            : sub.unlock_code
+              ? `<div><strong>Code (send via WhatsApp):</strong> <span class="mono" style="font-weight:800">${sub.unlock_code}</span></div>`
+              : ''
+          }
+        </div>`;
+      }).join('')
+    : '<p style="color:var(--muted);font-size:13px">No payment submissions yet.</p>';
+}
+
+async function issueCode(id){
+  const { data, error } = await verifySubmissionAndIssueCode(id);
+  if(error || !data){ showToast('Could not generate code — check your connection.', 'error'); return; }
+  showToast(`Code generated: ${data.unlock_code} — copy it and send via WhatsApp`, 'success', 6000);
+  loadAdminData();
+}
+
+function clearAllData(){
+  if(!confirm('⚠️ This will delete ALL users, invoices, customers and licenses. This cannot be undone.\n\nAre you sure?')) return;
+  ['fi_users','fi_customers','fi_invoices','fi_license','fi_current_user','fi_payment_submission','fi_downloads'].forEach(k => localStorage.removeItem(k));
+  showToast('All data cleared', 'info');
+  loadAdminData();
+}
+
+function exportData(){
+  const data = {
+    users:     getUsers(),
+    customers: getCustomers(),
+    invoices:  getInvoices(),
+    license:   getLicense(),
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fineinvoice-export.json'; a.click();
+  showToast('Data exported ✅', 'success');
+}
+</script>
+</body>
+</html>
