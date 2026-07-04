@@ -283,7 +283,7 @@ if(user){
   document.getElementById('customerCount').textContent = customers.length;
   document.getElementById('downloadCount').textContent = parseInt(localStorage.getItem('fi_downloads')||'0');
 
-  const plan = (license.plan||user.plan||'free').toUpperCase();
+  const plan = (user.plan||license.plan||'free').toUpperCase();
   document.getElementById('planVal').textContent  = plan;
   document.getElementById('planName').textContent = plan;
 
