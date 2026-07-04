@@ -293,6 +293,8 @@ async function submitPayment(){
     return;
   }
 
+  notifyAdminNewSubmission(submission);
+
   showToast('Payment submitted! 🎉 We\'ll send your unlock code to WhatsApp within 24 hours.', 'success', 5000);
   cancelPayment();
 }
