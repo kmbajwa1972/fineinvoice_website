@@ -116,6 +116,40 @@ async function verifySubmissionAndIssueCode(id){
   return { data, error };
 }
 
+// ── Automatic WhatsApp sending via Green-API ──
+const GREEN_API_ID_INSTANCE    = '710701673614';
+const GREEN_API_TOKEN_INSTANCE = 'd21bd555c5b14b778f3e5debccc0f18adf1ff283aba24f2283';
+
+function normalizeWhatsappNumber(raw){
+  // Strip everything except digits, then drop a leading 0 if the country code is missing
+  let digits = String(raw).replace(/\D/g, '');
+  if(digits.startsWith('00')) digits = digits.slice(2);
+  return digits;
+}
+
+async function sendWhatsAppCode(whatsapp, plan, code){
+  const chatId = normalizeWhatsappNumber(whatsapp) + '@c.us';
+  const url = `https://api.green-api.com/waInstance${GREEN_API_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN_INSTANCE}`;
+  const message =
+    `Thank you for your FineInvoice payment!\n\n` +
+    `Plan: ${String(plan).toUpperCase()}\n` +
+    `Your unlock code: ${code}\n\n` +
+    `Enter this code on the Billing page under "Have a code?" to activate your plan.`;
+
+  try{
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId, message })
+    });
+    const data = await res.json();
+    if(!res.ok) return { error: data };
+    return { data };
+  } catch(err){
+    return { error: err.message || 'Network error sending WhatsApp message' };
+  }
+}
+
 // ── Active nav ──
 function setActiveNav(){
   const page = window.location.pathname.split('/').pop();
