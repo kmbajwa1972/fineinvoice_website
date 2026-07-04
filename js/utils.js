@@ -119,6 +119,7 @@ async function verifySubmissionAndIssueCode(id){
 // ── Automatic WhatsApp sending via Green-API ──
 const GREEN_API_ID_INSTANCE    = '710701673614';
 const GREEN_API_TOKEN_INSTANCE = 'd21bd555c5b14b778f3e5debccc0f18adf1ff283aba24f2283';
+const GREEN_API_HOST           = 'https://7107.api.greenapi.com';
 
 function normalizeWhatsappNumber(raw){
   // Strip everything except digits, then drop a leading 0 if the country code is missing
@@ -129,7 +130,7 @@ function normalizeWhatsappNumber(raw){
 
 async function sendWhatsAppCode(whatsapp, plan, code){
   const chatId = normalizeWhatsappNumber(whatsapp) + '@c.us';
-  const url = `https://api.green-api.com/waInstance${GREEN_API_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN_INSTANCE}`;
+  const url = `${GREEN_API_HOST}/waInstance${GREEN_API_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN_INSTANCE}`;
   const message =
     `Thank you for your FineInvoice payment!\n\n` +
     `Plan: ${String(plan).toUpperCase()}\n` +
