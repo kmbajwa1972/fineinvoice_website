@@ -439,6 +439,7 @@ function loadInvoiceById(id){
 
 const urlParams = new URLSearchParams(window.location.search);
 const invoiceIdFromUrl = urlParams.get('invoice');
+const currentDraftId = invoiceIdFromUrl || ('DRAFT-' + Date.now());
 let arrivedFromUnlock = false;
 
 if(invoiceIdFromUrl){
@@ -629,16 +630,16 @@ function saveInvoice(){
   showToast('Invoice saved successfully! ✅', 'success');
 }
 
-function printInvoice(){
-  const user    = getCurrentUser();
-  const plan    = (user && user.plan) || 'free';
+async function printInvoice(){
+  const user = getCurrentUser();
 
-  if(plan === 'free'){
+  if(!hasInvoiceAccess(user, currentDraftId)){
     if(confirm('Printing requires a paid plan.\n\nPKR 199 / USD $2 per invoice\nor PKR 4,999 / USD $25 for Lifetime access.\n\nGo to Billing page?')){
       window.location.href = 'payment.html';
     }
     return;
   }
+  await consumeInvoiceCredit(user, currentDraftId);
 
   document.body.classList.add('print-mode');
   window.print();
@@ -646,15 +647,15 @@ function printInvoice(){
 }
 
 async function downloadPDF(){
-  const user    = getCurrentUser();
-  const plan    = (user && user.plan) || 'free';
+  const user = getCurrentUser();
 
-  if(plan === 'free'){
+  if(!hasInvoiceAccess(user, currentDraftId)){
     if(confirm('Download requires a paid plan.\n\nPKR 199 / USD $2 per PDF\nor PKR 4,999 / USD $25 for Lifetime access.\n\nGo to Billing page?')){
       window.location.href = 'payment.html';
     }
     return;
   }
+  await consumeInvoiceCredit(user, currentDraftId);
 
   showToast('Generating PDF…', 'info');
   const el = document.getElementById('invoiceDoc');
