@@ -310,7 +310,15 @@ async function applyCode(){
   saveLicense(lic);
 
   const user = getCurrentUser();
-  if(user){ user.plan = plan; saveCurrentUser(user); }
+  if(user){
+    user.plan = plan;
+    saveCurrentUser(user);
+    const sb = getSupabase();
+    if(sb){
+      try { await sb.auth.updateUser({ data: { plan } }); }
+      catch(e){ console.error('Could not sync plan to account:', e); }
+    }
+  }
 
   await markCodeUsed(submission.id);
 
