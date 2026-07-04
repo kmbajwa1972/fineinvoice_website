@@ -632,7 +632,7 @@ function saveInvoice(){
 function printInvoice(){
   const license = getLicense();
   const user    = getCurrentUser();
-  const plan    = license.plan || (user && user.plan) || 'free';
+  const plan    = (user && user.plan) || license.plan || 'free';
 
   if(plan === 'free'){
     if(confirm('Printing requires a paid plan.\n\nPKR 199 / USD $2 per invoice\nor PKR 4,999 / USD $25 for Lifetime access.\n\nGo to Billing page?')){
@@ -649,7 +649,7 @@ function printInvoice(){
 async function downloadPDF(){
   const license = getLicense();
   const user    = getCurrentUser();
-  const plan    = license.plan || (user && user.plan) || 'free';
+  const plan    = (user && user.plan) || license.plan || 'free';
 
   if(plan === 'free'){
     if(confirm('Download requires a paid plan.\n\nPKR 199 / USD $2 per PDF\nor PKR 4,999 / USD $25 for Lifetime access.\n\nGo to Billing page?')){
