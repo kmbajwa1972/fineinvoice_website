@@ -209,7 +209,15 @@ async function loadAdminData(){
 async function issueCode(id){
   const { data, error } = await verifySubmissionAndIssueCode(id);
   if(error || !data){ showToast('Could not generate code — check your connection.', 'error'); return; }
-  showToast(`Code generated: ${data.unlock_code} — copy it and send via WhatsApp`, 'success', 6000);
+
+  showToast(`Code generated: ${data.unlock_code} — sending via WhatsApp…`, 'info', 4000);
+
+  const sendResult = await sendWhatsAppCode(data.whatsapp, data.plan, data.unlock_code);
+  if(sendResult.error){
+    showToast(`Code is ${data.unlock_code}, but WhatsApp send failed — please send it manually.`, 'error', 7000);
+  } else {
+    showToast(`✅ Code ${data.unlock_code} sent to ${data.whatsapp} via WhatsApp!`, 'success', 6000);
+  }
   loadAdminData();
 }
 
