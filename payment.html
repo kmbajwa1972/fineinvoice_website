@@ -313,11 +313,16 @@ async function applyCode(){
 
   const user = getCurrentUser();
   if(user){
-    user.plan = plan;
+    if(plan === 'lifetime'){
+      user.plan = 'lifetime';
+    } else if(plan === 'single'){
+      user.singleCredits = (user.singleCredits || 0) + 1;
+      if(user.plan !== 'lifetime') user.plan = 'single';
+    }
     saveCurrentUser(user);
     const sb = getSupabase();
     if(sb){
-      try { await sb.auth.updateUser({ data: { plan } }); }
+      try { await sb.auth.updateUser({ data: { plan: user.plan, singleCredits: user.singleCredits || 0, unlockedInvoiceIds: user.unlockedInvoiceIds || [] } }); }
       catch(e){ console.error('Could not sync plan to account:', e); }
     }
   }
