@@ -173,6 +173,30 @@ async function notifyAdminNewSubmission(sub){
   } catch(e){ console.error('Could not notify admin:', e); }
 }
 
+// ── Single-plan invoice credits (so SINGLE buys one invoice, not unlimited) ──
+function hasInvoiceAccess(user, invoiceId){
+  if(!user) return false;
+  if(user.plan === 'lifetime') return true;
+  const unlocked = user.unlockedInvoiceIds || [];
+  if(unlocked.includes(invoiceId)) return true; // already paid for this specific invoice
+  return (user.singleCredits || 0) > 0;
+}
+
+async function consumeInvoiceCredit(user, invoiceId){
+  if(!user || user.plan === 'lifetime') return;
+  const unlocked = user.unlockedInvoiceIds || [];
+  if(unlocked.includes(invoiceId)) return; // don't double-charge for the same invoice
+  user.singleCredits = Math.max(0, (user.singleCredits || 0) - 1);
+  unlocked.push(invoiceId);
+  user.unlockedInvoiceIds = unlocked;
+  saveCurrentUser(user);
+  const sb = getSupabase();
+  if(sb){
+    try { await sb.auth.updateUser({ data: { singleCredits: user.singleCredits, unlockedInvoiceIds: user.unlockedInvoiceIds } }); }
+    catch(e){ console.error('Could not sync invoice credit:', e); }
+  }
+}
+
 // ── Active nav ──
 function setActiveNav(){
   const page = window.location.pathname.split('/').pop();
