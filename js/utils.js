@@ -151,6 +151,28 @@ async function sendWhatsAppCode(whatsapp, plan, code){
   }
 }
 
+const ADMIN_WHATSAPP_NUMBER = '923008637155'; // Khalid's own number — receives new-submission alerts
+
+async function notifyAdminNewSubmission(sub){
+  const chatId = normalizeWhatsappNumber(ADMIN_WHATSAPP_NUMBER) + '@c.us';
+  const url = `${GREEN_API_HOST}/waInstance${GREEN_API_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN_INSTANCE}`;
+  const message =
+    `🔔 New FineInvoice payment submitted!\n\n` +
+    `Plan: ${String(sub.plan||'').toUpperCase()}\n` +
+    `Method: ${sub.method}\n` +
+    `Transaction ID: ${sub.txn}\n` +
+    `Customer WhatsApp: ${sub.whatsapp}\n` +
+    `Email: ${sub.email||'—'}\n\n` +
+    `Open admin.html to verify and send the unlock code.`;
+  try{
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId, message })
+    });
+  } catch(e){ console.error('Could not notify admin:', e); }
+}
+
 // ── Active nav ──
 function setActiveNav(){
   const page = window.location.pathname.split('/').pop();
