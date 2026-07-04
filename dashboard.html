@@ -284,8 +284,9 @@ if(user){
   document.getElementById('downloadCount').textContent = parseInt(localStorage.getItem('fi_downloads')||'0');
 
   const plan = (user.plan||'free').toUpperCase();
-  document.getElementById('planVal').textContent  = plan;
-  document.getElementById('planName').textContent = plan;
+  const planLabel = (user.plan === 'single') ? `SINGLE (${user.singleCredits||0} invoice${(user.singleCredits||0)===1?'':'s'} left)` : plan;
+  document.getElementById('planVal').textContent  = planLabel;
+  document.getElementById('planName').textContent = planLabel;
 
   // Active nav
   document.querySelectorAll('.sb-nav a').forEach(a=>{
