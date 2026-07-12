@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Invoices — FineInvoice</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<style>
+.search-bar {
+  display: flex; gap: 12px; margin-bottom: 20px; align-items: center;
+}
+.search-wrap { position: relative; flex: 1; }
+.search-wrap .search-icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 15px; pointer-events: none;
+}
+.search-wrap input { padding-left: 40px; }
+
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 12px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+}
+.status-saved    { background: var(--violet-l); color: var(--violet); }
+.status-paid     { background: var(--mint-l);   color: var(--mint);   }
+.status-overdue  { background: var(--coral-l);  color: var(--coral);  }
+
+.inv-amount { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 14px; color: var(--violet); }
+
+.empty-state {
+  text-align: center; padding: 80px 20px; color: var(--muted);
+}
+.empty-state .icon { font-size: 56px; margin-bottom: 16px; }
+.empty-state h3    { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.empty-state p     { font-size: 14px; margin-bottom: 24px; }
+
+.action-btns { display: flex; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+  <div class="sb-logo">
+    <img src="logo.jpg" alt="FineInvoice">
+    <span>FineInvoice</span>
+  </div>
+  <nav class="sb-nav">
+    <a href="dashboard.html"><span class="ni">🏠</span>Dashboard</a>
+    <a href="app.html"><span class="ni">✏️</span>New Invoice</a>
+    <a href="invoices.html" class="active"><span class="ni">📋</span>Invoices</a>
+    <a href="customers.html"><span class="ni">👥</span>Customers</a>
+    <a href="payment.html"><span class="ni">💳</span>Billing</a>
+  </nav>
+  <div class="sb-footer">
+    <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
+  </div>
+</aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">📋 Invoices</span>
+      <div class="topbar-right" id="userChip"></div>
+    </div>
+
+    <div class="page-body">
+
+      <div class="section-head mb-6">
+        <div>
+          <div class="section-title" style="font-size:18px">All Invoices</div>
+          <div class="text-muted text-sm mt-1" id="invoiceCountLabel">0 invoices</div>
+        </div>
+        <a href="app.html" class="btn btn-primary">+ New Invoice</a>
+      </div>
+
+      <div class="search-bar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="form-input" id="search" placeholder="Search by company or customer…" oninput="renderInvoices()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Company</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="invoiceTable"></tbody>
+          </table>
+        </div>
+        <div id="emptyState" class="empty-state" style="display:none">
+          <div class="icon">📭</div>
+          <h3>No invoices yet</h3>
+          <p>Create your first invoice and it will appear here.</p>
+          <a href="app.html" class="btn btn-primary">Create Invoice</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/utils.js"></script>
+<script>
+requireAuth();
+renderUserChip('userChip');
+setActiveNav();
+
+function openInvoice(id){
+  window.location.href = 'app.html?invoice=' + encodeURIComponent(id);
+}
+
+function deleteInvoice(id){
+  if(!confirm('Delete this invoice?')) return;
+  saveInvoices(getInvoices().filter(i => i.id !== id));
+  showToast('Invoice deleted', 'info');
+  renderInvoices();
+}
+
+function duplicateInvoice(id){
+  const inv = getInvoices().find(i => i.id === id);
+  if(!inv) return;
+  const copy = { ...inv, id: 'INV-'+Date.now(), invNumber: 'INV-'+String(getInvoices().length+1).padStart(3,'0'), date: new Date().toISOString() };
+  const all = getInvoices();
+  all.push(copy);
+  saveInvoices(all);
+  showToast('Invoice duplicated ✅', 'success');
+  renderInvoices();
+}
+
+function markPaid(id){
+  const invoices = getInvoices();
+  const inv = invoices.find(i => i.id === id);
+  if(inv){ inv.status = 'paid'; saveInvoices(invoices); renderInvoices(); showToast('Marked as paid 💚', 'success'); }
+}
+
+function renderInvoices(){
+  const q = (document.getElementById('search').value || '').toLowerCase();
+  const all = getInvoices();
+  const filtered = all.filter(i =>
+    (i.company||'').toLowerCase().includes(q) ||
+    (i.customer||'').toLowerCase().includes(q) ||
+    (i.invNumber||'').toLowerCase().includes(q)
+  );
+
+  document.getElementById('invoiceCountLabel').textContent = `${all.length} invoice${all.length!==1?'s':''}`;
+
+  const tbody = document.getElementById('invoiceTable');
+  const empty = document.getElementById('emptyState');
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const sym = { PKR:'₨', USD:'$', EUR:'€', AED:'AED ', GBP:'£' };
+
+  tbody.innerHTML = [...filtered].reverse().map(i => {
+    const s = sym[i.currency] || (i.currency+' ');
+    const amount = i.total ? `${s}${parseFloat(i.total).toLocaleString('en',{minimumFractionDigits:2})}` : '—';
+    const status = i.status || 'saved';
+    const statusLabel = status === 'paid' ? '✅ Paid' : '📄 Saved';
+    return `<tr>
+      <td><span class="mono" style="font-size:13px;font-weight:600">${i.invNumber||i.id}</span></td>
+      <td><strong>${i.company||'—'}</strong></td>
+      <td>${i.customer||'—'}</td>
+      <td style="color:var(--muted);font-size:13px">${new Date(i.date).toLocaleDateString('en-GB')}</td>
+      <td><span class="inv-amount">${amount}</span></td>
+      <td><span class="status-badge status-${status}">${statusLabel}</span></td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-outline btn-sm" onclick="openInvoice('${i.id}')">📂 Open</button>
+          ${status !== 'paid' ? `<button class="btn btn-sm" style="background:var(--mint-l);color:var(--mint);border:1px solid #b6f5e0" onclick="markPaid('${i.id}')">Paid</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="duplicateInvoice('${i.id}')">📋</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteInvoice('${i.id}')">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+renderInvoices();
+</script>
+</body>
+</html>
