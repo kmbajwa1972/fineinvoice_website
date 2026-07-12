@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin Panel — FineInvoice</title>
+<link rel="stylesheet" href="css/theme.css">
+<style>
+.admin-gate { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
+.admin-login { background: white; border-radius: var(--radius-lg); padding: 48px; width: 100%; max-width: 400px; box-shadow: var(--shadow-lg); text-align: center; }
+.admin-login .icon { font-size: 48px; margin-bottom: 16px; }
+.admin-login h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.admin-login p  { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.sub-section-head { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<!-- Admin Gate -->
+<div class="admin-gate" id="adminGate">
+  <div class="admin-login">
+    <div class="icon">🔐</div>
+    <h2>Admin Panel</h2>
+    <p>This area is restricted. Enter admin password to continue.</p>
+    <div class="form-group">
+      <input class="form-input" id="adminPass" type="password" placeholder="Admin password" style="text-align:center">
+    </div>
+    <button class="btn btn-primary w-full" onclick="checkAdmin()" style="margin-top:8px">Access Admin →</button>
+  </div>
+</div>
+
+<!-- Admin Panel (hidden until authenticated) -->
+<div class="app-layout" id="adminPanel" style="display:none">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <img src="logo.jpg" alt="FineInvoice" style="width:38px;height:38px;border-radius:10px;object-fit:cover;">
+        <div class="logo-text">FineInvoice</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html"><span class="nav-icon">🏠</span>Dashboard</a>
+      <a href="app.html"><span class="nav-icon">✏️</span>New Invoice</a>
+      <a href="invoices.html"><span class="nav-icon">📋</span>Invoices</a>
+      <a href="customers.html"><span class="nav-icon">👥</span>Customers</a>
+      <a href="payment.html"><span class="nav-icon">💳</span>Billing</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">🔧 Admin Panel</span>
+      <div class="topbar-right">
+        <span class="badge" style="background:var(--coral-l);color:var(--coral)">Admin</span>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Stats -->
+      <div class="stat-grid mb-6">
+        <div class="stat-card violet">
+          <div class="stat-icon">👤</div>
+          <div class="stat-label">Registered Users</div>
+          <div class="stat-value" id="statUsers">0</div>
+        </div>
+        <div class="stat-card mint">
+          <div class="stat-icon">👥</div>
+          <div class="stat-label">Total Customers</div>
+          <div class="stat-value" id="statCustomers">0</div>
+        </div>
+        <div class="stat-card coral">
+          <div class="stat-icon">📄</div>
+          <div class="stat-label">Total Invoices</div>
+          <div class="stat-value" id="statInvoices">0</div>
+        </div>
+        <div class="stat-card amber">
+          <div class="stat-icon">⭐</div>
+          <div class="stat-label">Active License</div>
+          <div class="stat-value" id="statLicense" style="font-size:20px;padding-top:6px">FREE</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+        <!-- Users -->
+        <div class="card card-pad">
+          <div class="sub-section-head">👤 Registered Users</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>Plan</th></tr></thead>
+              <tbody id="usersTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Payments -->
+        <div class="card card-pad">
+          <div class="sub-section-head">💳 License & Payment</div>
+          <div id="licenseInfo" style="font-size:14px"></div>
+
+          <div style="margin-top:20px">
+            <div class="sub-section-head">📨 Pending Submission</div>
+            <div id="pendingSubmission" style="font-size:14px"></div>
+          </div>
+
+          <div style="margin-top:20px">
+            <div class="sub-section-head">🔑 Issue Unlock Code</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Send this code to user via WhatsApp after payment verification.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <div style="background:var(--violet-l);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-family:monospace;font-weight:700;color:var(--violet)">SINGLE2024</div>
+              <div style="background:var(--amber-l);border:1px solid #FFD9A0;border-radius:10px;padding:10px 16px;font-family:monospace;font-weight:700;color:#B76E00">LIFETIME2024</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Danger zone -->
+      <div class="card card-pad mt-6" style="border-color:var(--coral)">
+        <div class="sub-section-head" style="color:var(--coral)">⚠️ Danger Zone</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-danger" onclick="clearAllData()">🗑️ Clear All Data</button>
+          <button class="btn btn-ghost" onclick="exportData()">📤 Export JSON</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/utils.js"></script>
+<script>
+const ADMIN_PASS = 'admin123';
+
+function checkAdmin(){
+  const pass = document.getElementById('adminPass').value;
+  if(pass === ADMIN_PASS){
+    document.getElementById('adminGate').style.display  = 'none';
+    document.getElementById('adminPanel').style.display = 'flex';
+    loadAdminData();
+  } else {
+    showToast('Incorrect password', 'error');
+  }
+}
+
+document.getElementById('adminPass').addEventListener('keydown', e => { if(e.key==='Enter') checkAdmin(); });
+
+function loadAdminData(){
+  const users     = getUsers();
+  const customers = getCustomers();
+  const invoices  = getInvoices();
+  const license   = getLicense();
+
+  document.getElementById('statUsers').textContent     = users.length;
+  document.getElementById('statCustomers').textContent = customers.length;
+  document.getElementById('statInvoices').textContent  = invoices.length;
+  document.getElementById('statLicense').textContent   = (license.plan || 'FREE').toUpperCase();
+
+  // Users table
+  document.getElementById('usersTable').innerHTML = users.length
+    ? users.map(u => `<tr>
+        <td><strong>${u.name||'—'}</strong></td>
+        <td style="font-size:13px;color:var(--muted)">${u.email||'—'}</td>
+        <td><span class="badge badge-${u.plan==='lifetime'?'lifetime':u.plan==='single'?'single':'free'}">${(u.plan||'free').toUpperCase()}</span></td>
+      </tr>`).join('')
+    : '<tr><td colspan="3" style="color:var(--muted);font-size:13px">No users registered</td></tr>';
+
+  // License
+  document.getElementById('licenseInfo').innerHTML = license.plan
+    ? `<div style="display:flex;flex-direction:column;gap:8px">
+        <div><strong>Plan:</strong> ${license.plan.toUpperCase()}</div>
+        <div><strong>Code:</strong> <span class="mono">${license.code||license.txn||'—'}</span></div>
+        <div><strong>Activated:</strong> ${license.activatedAt ? new Date(license.activatedAt).toLocaleString() : '—'}</div>
+      </div>`
+    : '<p style="color:var(--muted)">No active license found.</p>';
+
+  // Pending submission
+  const sub = JSON.parse(localStorage.getItem('fi_payment_submission')||'null');
+  document.getElementById('pendingSubmission').innerHTML = sub
+    ? `<div style="background:var(--amber-l);border:1px solid #FFD9A0;border-radius:10px;padding:12px 16px;display:flex;flex-direction:column;gap:6px">
+        <div><strong>Plan:</strong> ${sub.plan.toUpperCase()}</div>
+        <div><strong>Method:</strong> ${sub.method}</div>
+        <div><strong>Transaction ID:</strong> <span class="mono">${sub.txn}</span></div>
+        <div><strong>WhatsApp:</strong> ${sub.whatsapp}</div>
+        <div><strong>Submitted:</strong> ${new Date(sub.submittedAt).toLocaleString()}</div>
+        <button class="btn btn-danger btn-sm" style="margin-top:6px;width:fit-content" onclick="clearSubmission()">Clear Submission</button>
+      </div>`
+    : '<p style="color:var(--muted);font-size:13px">No pending payment submissions.</p>';
+}
+
+function clearSubmission(){
+  localStorage.removeItem('fi_payment_submission');
+  showToast('Submission cleared', 'info');
+  loadAdminData();
+}
+
+function clearAllData(){
+  if(!confirm('⚠️ This will delete ALL users, invoices, customers and licenses. This cannot be undone.\n\nAre you sure?')) return;
+  ['fi_users','fi_customers','fi_invoices','fi_license','fi_current_user','fi_payment_submission','fi_downloads'].forEach(k => localStorage.removeItem(k));
+  showToast('All data cleared', 'info');
+  loadAdminData();
+}
+
+function exportData(){
+  const data = {
+    users:     getUsers(),
+    customers: getCustomers(),
+    invoices:  getInvoices(),
+    license:   getLicense(),
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fineinvoice-export.json'; a.click();
+  showToast('Data exported ✅', 'success');
+}
+</script>
+</body>
+</html>
