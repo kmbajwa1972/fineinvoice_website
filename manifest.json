@@ -1,0 +1,27 @@
+{
+  "name": "FineInvoice — Invoicing for Pakistani Freelancers",
+  "short_name": "FineInvoice",
+  "description": "Create professional PDF invoices in seconds. Free invoicing tool for Pakistani freelancers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060412",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "lang": "en-PK"
+}
