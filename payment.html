@@ -164,12 +164,12 @@
             <div class="method-card" id="m-easypaisa" onclick="selectMethod('easypaisa')">
               <div class="method-logo">📱</div>
               <div class="method-name">EasyPaisa</div>
-              <div class="method-detail">0300-0000000</div>
+              <div class="method-detail">+92-300-8637155</div>
             </div>
             <div class="method-card" id="m-jazzcash" onclick="selectMethod('jazzcash')">
               <div class="method-logo">📲</div>
               <div class="method-name">JazzCash</div>
-              <div class="method-detail">0300-0000000</div>
+              <div class="method-detail">+92-300-8637155</div>
             </div>
             <div class="method-card" id="m-paypal" onclick="selectMethod('paypal')">
               <div class="method-logo">🅿️</div>
@@ -190,7 +190,7 @@
 
           <div class="form-group">
             <label class="form-label">WhatsApp Number (for unlock code delivery)</label>
-            <input class="form-input" id="whatsapp" placeholder="+92 300 0000000">
+            <input class="form-input" id="whatsapp" placeholder="+92 300 8637155">
           </div>
 
           <div style="display:flex;gap:12px;margin-top:4px">
@@ -268,8 +268,8 @@ function selectMethod(method){
   document.getElementById('m-'+method).classList.add('active');
 
   const instructions = {
-    easypaisa: { title:'EasyPaisa — Mobile Account', text:'Send payment to 0300-0000000 (Account: Khalid Mehmood). Take a screenshot and note the transaction ID.' },
-    jazzcash:  { title:'JazzCash — Mobile Account',  text:'Send payment to 0300-0000000 (Account: Khalid Mehmood). Take a screenshot and note the transaction ID.' },
+    easypaisa: { title:'EasyPaisa — Mobile Account', text:'Send payment to +92-300-8637155 (Account: Khalid Mehmood). Take a screenshot and note the transaction ID.' },
+    jazzcash:  { title:'JazzCash — Mobile Account',  text:'Send payment to +92-300-8637155 (Account: Khalid Mehmood). Take a screenshot and note the transaction ID.' },
     paypal:    { title:'PayPal',                       text:'Send payment to paypal.me/KhalidmehmoodBajwa. Mark it as "Goods and Services" and include your email in the note.' }
   };
   const inst = instructions[method];
@@ -309,7 +309,7 @@ function submitPayment(){
     (selectedPlan === 'lifetime' ? 'LIFETIME2024' : 'SINGLE2024')
   );
   // Open WhatsApp with payment details sent to your number
-  window.open('https://wa.me/923006100000?text=' + msg, '_blank');
+  window.open('https://wa.me/923008637155?text=' + msg, '_blank');
 
   showToast('Payment submitted! 🎉 We\'ll send your unlock code to WhatsApp instantly.', 'success', 5000);
   cancelPayment();
