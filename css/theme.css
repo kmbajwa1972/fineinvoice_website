@@ -593,32 +593,8 @@ tr:hover td { background: var(--bg); }
 }
 
 /* ── Responsive ── */
-/* ── Mobile hamburger button ── */
-.mobile-menu-btn{
-  display:none;
-  position:fixed;top:12px;left:12px;z-index:201;
-  width:42px;height:42px;border-radius:10px;
-  background:rgba(20,12,40,.95);
-  border:1px solid rgba(255,255,255,.15);
-  color:#fff;font-size:21px;cursor:pointer;
-  align-items:center;justify-content:center;
-  box-shadow:0 4px 16px rgba(0,0,0,.4);
-  transition:background .2s;
-}
-.mobile-menu-btn:hover{background:rgba(124,58,237,.3);}
-
-.sidebar-overlay{
-  display:none;position:fixed;inset:0;
-  background:rgba(0,0,0,.6);z-index:199;
-  backdrop-filter:blur(2px);
-}
-
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); transition: transform .25s ease; }
-  .sidebar.open { transform: translateX(0) !important; z-index: 200; }
-  .sidebar-overlay.open { display: block; }
-  .mobile-menu-btn { display: flex; }
-}
+  .sidebar { transform: translateX(-100%); }
   .main-content { margin-left: 0; }
   .page-body { padding: 16px; }
   .auth-illustration { display: none; }
@@ -643,3 +619,13 @@ tr:hover td { background: var(--bg); }
 .w-full      { width: 100%; }
 .mono        { font-family: 'JetBrains Mono', monospace; }
 
+/* ── Mobile hamburger & overlay ── */
+.mobile-menu-btn{display:none;position:fixed;top:12px;left:12px;z-index:201;width:42px;height:42px;border-radius:10px;background:rgba(20,12,40,.95);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:21px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.4);}
+.mobile-menu-btn:hover{background:rgba(124,58,237,.3);}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;backdrop-filter:blur(2px);}
+@media(max-width:900px){
+  .sidebar{transition:transform .25s ease !important;}
+  .sidebar.open{transform:translateX(0) !important;z-index:200;}
+  .sidebar-overlay.open{display:block;}
+  .mobile-menu-btn{display:flex;}
+}
