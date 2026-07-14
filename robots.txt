@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /index.html
+Allow: /signup.html
+Disallow: /app.html
+Disallow: /dashboard.html
+Disallow: /admin.html
+Disallow: /payment.html
+Disallow: /customers.html
+Disallow: /invoices.html
+Disallow: /signin.html
+Sitemap: https://fineinvoice.com/sitemap.xml

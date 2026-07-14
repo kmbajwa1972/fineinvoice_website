@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sign In — FineInvoice</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#060412;min-height:100vh;display:flex;}
+
+/* ── LEFT PANEL ── */
+.auth-panel{
+  flex:0 0 480px;background:#0d0a1f;
+  padding:52px 52px;display:flex;flex-direction:column;justify-content:center;
+  border-right:1px solid rgba(255,255,255,.07);
+}
+.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:44px;}
+.auth-logo img{width:38px;height:38px;border-radius:11px;object-fit:cover;}
+.auth-logo span{font-size:20px;font-weight:900;background:linear-gradient(90deg,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+
+.auth-title{font-size:28px;font-weight:900;color:#fff;margin-bottom:6px;}
+.auth-sub{font-size:14px;color:rgba(255,255,255,.4);margin-bottom:36px;}
+
+.form-group{margin-bottom:18px;}
+.form-label{display:block;font-size:13px;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:7px;}
+.form-input{
+  width:100%;padding:12px 16px;
+  background:rgba(255,255,255,.05);
+  border:1.5px solid rgba(255,255,255,.1);
+  border-radius:11px;
+  font-family:inherit;font-size:14px;color:#fff;
+  transition:all .2s;outline:none;
+}
+.form-input::placeholder{color:rgba(255,255,255,.25);}
+.form-input:focus{border-color:#7c3aed;background:rgba(124,58,237,.08);box-shadow:0 0 0 3px rgba(124,58,237,.15);}
+
+.btn-signin{
+  width:100%;padding:14px;
+  background:linear-gradient(135deg,#7c3aed,#ec4899);
+  color:#fff;font-size:15px;font-weight:700;
+  border:none;border-radius:12px;cursor:pointer;font-family:inherit;
+  box-shadow:0 6px 20px rgba(124,58,237,.4);transition:all .2s;margin-top:8px;
+}
+.btn-signin:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(124,58,237,.5);}
+
+.auth-footer{margin-top:24px;font-size:14px;color:rgba(255,255,255,.35);text-align:center;}
+.auth-link{color:#a78bfa;font-weight:600;text-decoration:none;}
+.auth-link:hover{color:#c4b5fd;}
+
+/* ── RIGHT ILLUSTRATION ── */
+.auth-illus{
+  flex:1;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#0f0524 0%,#1a0640 40%,#2d0b6b 70%,#1a0640 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.illus-bg{position:absolute;inset:0;}
+.illus-bg::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 600px 500px at 60% 40%,rgba(124,58,237,.45),transparent 65%),radial-gradient(ellipse 400px 350px at 10% 80%,rgba(236,72,153,.25),transparent 60%);}
+.illus-bg::after{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:55px 55px;}
+
+.illus-content{position:relative;z-index:2;padding:40px;max-width:440px;text-align:center;}
+.illus-content h2{font-size:28px;font-weight:900;color:#fff;margin-bottom:10px;line-height:1.2;}
+.illus-content p{font-size:14px;color:rgba(255,255,255,.55);margin-bottom:32px;}
+
+/* 3D Invoice card */
+.inv-scene{perspective:900px;margin-bottom:28px;}
+.inv-3d{
+  width:300px;margin:0 auto;
+  transform:rotateX(10deg) rotateY(-12deg) rotateZ(2deg);
+  animation:cardFloat 5s ease-in-out infinite;
+  filter:drop-shadow(0 35px 70px rgba(0,0,0,.7)) drop-shadow(0 0 50px rgba(124,58,237,.4));
+}
+@keyframes cardFloat{0%,100%{transform:rotateX(10deg) rotateY(-12deg) rotateZ(2deg) translateY(0);}50%{transform:rotateX(8deg) rotateY(-10deg) rotateZ(2deg) translateY(-14px);}}
+.inv-card{background:linear-gradient(145deg,#1a1033,#120d28);border:1px solid rgba(167,139,250,.2);border-radius:18px;padding:24px;color:#fff;position:relative;overflow:hidden;text-align:left;}
+.inv-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#7c3aed,#ec4899,#fb923c);}
+.inv-brand{display:flex;align-items:center;gap:7px;margin-bottom:16px;}
+.inv-brand img{width:20px;height:20px;border-radius:5px;object-fit:cover;}
+.inv-brand span{font-size:10px;font-weight:800;color:#a78bfa;letter-spacing:1px;text-transform:uppercase;}
+.inv-brand .iref{font-size:10px;color:rgba(255,255,255,.3);margin-left:auto;}
+.inv-title{font-size:15px;font-weight:800;margin-bottom:14px;}
+.inv-row{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.45);margin-bottom:8px;}
+.inv-row strong{color:rgba(255,255,255,.85);}
+.inv-div{height:1px;background:rgba(255,255,255,.07);margin:12px 0;}
+.inv-total{display:flex;justify-content:space-between;align-items:center;}
+.inv-tlbl{font-size:10px;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;}
+.inv-tamt{font-size:20px;font-weight:900;}
+.inv-badge{display:inline-flex;align-items:center;gap:5px;margin-top:14px;background:rgba(0,196,140,.15);border:1px solid rgba(0,196,140,.3);color:#00C48C;font-size:9px;font-weight:700;padding:4px 11px;border-radius:50px;letter-spacing:.5px;}
+
+.feat-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+.fchip{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:50px;padding:7px 14px;color:rgba(255,255,255,.8);font-size:12px;font-weight:600;}
+.fchip .cd{width:7px;height:7px;border-radius:50%;}
+
+/* Floating chips */
+.flt{position:absolute;background:rgba(255,255,255,.07);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.12);border-radius:50px;padding:8px 14px;color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap;z-index:3;box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.flt.f1{top:12%;left:4%;animation:flt1 6s ease-in-out infinite;}
+.flt.f2{bottom:20%;right:4%;animation:flt2 7s ease-in-out infinite 1s;}
+.flt .dot{width:7px;height:7px;border-radius:50%;}
+@keyframes flt1{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+@keyframes flt2{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
+
+.sp{position:absolute;z-index:3;color:rgba(255,255,255,.45);animation:spk 3s ease-in-out infinite;}
+.sp.s1{top:8%;right:14%;font-size:16px;animation-delay:0s;}
+.sp.s2{bottom:30%;left:4%;font-size:12px;animation-delay:1.8s;}
+@keyframes spk{0%,100%{opacity:.2;transform:scale(1);}50%{opacity:1;transform:scale(1.3);}}
+
+.toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;}
+.toast{display:flex;align-items:center;gap:12px;background:#1a1033;border:1px solid rgba(167,139,250,.2);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slideIn .3s ease;min-width:260px;}
+.toast.success{background:#0d2b1f;border-color:rgba(0,196,140,.3);color:#00C48C;}
+.toast.error{background:#2b0d0d;border-color:rgba(255,107,107,.3);color:#ff6b6b;}
+.toast.info{background:#1a0d3d;border-color:rgba(124,58,237,.3);color:#a78bfa;}
+@keyframes slideIn{from{transform:translateX(120%);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+@media(max-width:768px){.auth-illus{display:none;}.auth-panel{flex:1;padding:40px 24px;}}
+</style>
+</head>
+<body>
+
+<div class="auth-panel">
+  <div class="auth-logo">
+    <img src="logo.jpg" alt="FineInvoice">
+    <span>FineInvoice</span>
+  </div>
+
+  <h1 class="auth-title">Welcome back</h1>
+  <p class="auth-sub">Sign in to manage your invoices and clients</p>
+
+  <div class="form-group">
+    <label class="form-label">Email address</label>
+    <input class="form-input" id="email" type="email" placeholder="you@example.com" autofocus>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Password</label>
+    <input class="form-input" id="password" type="password" placeholder="Enter your password">
+  </div>
+
+  <button class="btn-signin" onclick="doSignin()">Sign In →</button>
+
+  <div class="auth-footer">
+    Don't have an account? <a href="signup.html" class="auth-link">Create one free</a><br>
+    <a href="index.html" class="auth-link" style="font-size:13px;opacity:.7;">← Back to home</a>
+  </div>
+</div>
+
+<div class="auth-illus">
+  <div class="illus-bg"></div>
+  <div class="sp s1">✦</div>
+  <div class="sp s2">✦</div>
+
+  <div class="flt f1"><div class="dot" style="background:#00C48C"></div>EasyPaisa · JazzCash ✓</div>
+  <div class="flt f2"><div class="dot" style="background:#a78bfa"></div>Instant PDF 📄</div>
+
+  <div class="illus-content">
+    <h2>Professional Invoices<br>in Seconds</h2>
+    <p>Create, send &amp; track invoices. Multi-currency. Built for Pakistani freelancers.</p>
+
+    <div class="inv-scene">
+      <div class="inv-3d">
+        <div class="inv-card">
+          <div class="inv-brand">
+            <img src="logo.jpg" alt="">
+            <span>FineInvoice</span>
+            <span class="iref">#INV-0042</span>
+          </div>
+          <div class="inv-title">Website Redesign</div>
+          <div class="inv-row"><span>Client</span><strong>Ahmed Co.</strong></div>
+          <div class="inv-row"><span>Design</span><strong>PKR 15,000</strong></div>
+          <div class="inv-row"><span>Dev</span><strong>PKR 28,000</strong></div>
+          <div class="inv-div"></div>
+          <div class="inv-total">
+            <span class="inv-tlbl">Total Due</span>
+            <span class="inv-tamt">PKR 43,000</span>
+          </div>
+          <div class="inv-badge">✓ EasyPaisa Ready</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feat-chips">
+      <div class="fchip"><div class="cd" style="background:#7c3aed"></div>Multi-currency</div>
+      <div class="fchip"><div class="cd" style="background:#00C48C"></div>Cloud Sync</div>
+      <div class="fchip"><div class="cd" style="background:#f472b6"></div>PKR 199 / PDF</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/utils.js"></script>
+<script>
+async function doSignin(){
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if(!email||!password){ showToast('Please fill all fields','error'); return; }
+
+  // Try Supabase first
+  const sb = getSupabase();
+  if(sb){
+    const {data,error} = await sb.auth.signInWithPassword({email,password});
+    if(error){
+      // Fallback: try localStorage users
+      const users = JSON.parse(localStorage.getItem('fi_users')||'[]');
+      const user = users.find(u=>u.email===email&&u.password===password);
+      if(!user){ showToast('Invalid email or password','error'); return; }
+      saveCurrentUser(user);
+      showToast('Welcome back, '+user.name+'!','success');
+      setTimeout(()=>window.location.href='dashboard.html',900);
+    } else {
+      const u = {id:data.user.id,email:data.user.email,name:data.user.user_metadata?.name||email.split('@')[0],plan:'free'};
+      saveCurrentUser(u);
+      showToast('Welcome back!','success');
+      setTimeout(()=>window.location.href='dashboard.html',900);
+    }
+  } else {
+    const users = JSON.parse(localStorage.getItem('fi_users')||'[]');
+    const user = users.find(u=>u.email===email&&u.password===password);
+    if(!user){ showToast('Invalid email or password','error'); return; }
+    saveCurrentUser(user);
+    showToast('Welcome back, '+user.name+'!','success');
+    setTimeout(()=>window.location.href='dashboard.html',900);
+  }
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Enter') doSignin(); });
+</script>
+</body>
+</html>
