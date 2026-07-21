@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="logo.jpg">
 <meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sign In — FineInvoice</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -152,7 +154,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#060412;min-height:10
 
   <div class="illus-content">
     <h2>Professional Invoices<br>in Seconds</h2>
-    <p>Create, send &amp; track invoices. Multi-currency. Built for Pakistani freelancers.</p>
+    <p>Create, send &amp; track invoices. Multi-currency. Built for freelancers &amp; small businesses.</p>
 
     <div class="inv-scene">
       <div class="inv-3d">
@@ -205,7 +207,7 @@ async function doSignin(){
       showToast('Welcome back, '+user.name+'!','success');
       setTimeout(()=>window.location.href='dashboard.html',900);
     } else {
-      const u = {id:data.user.id,email:data.user.email,name:data.user.user_metadata?.name||email.split('@')[0],plan:'free'};
+      const u = {id:data.user.id,email:data.user.email,name:data.user.user_metadata?.name||email.split('@')[0],plan:data.user.user_metadata?.plan||'free',singleCredits:data.user.user_metadata?.singleCredits||0,unlockedInvoiceIds:data.user.user_metadata?.unlockedInvoiceIds||[]};
       saveCurrentUser(u);
       showToast('Welcome back!','success');
       setTimeout(()=>window.location.href='dashboard.html',900);

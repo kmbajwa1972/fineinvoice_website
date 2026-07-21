@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="logo.jpg">
 <meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Invoice Builder — FineInvoice</title>
 <link rel="stylesheet" href="css/theme.css">
 <style>
@@ -34,8 +36,10 @@
   background: var(--bg);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
+.form-section-head-left { display:flex;align-items:center;gap:8px; }
 .form-section-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -45,26 +49,36 @@
 .items-table th {
   background: var(--bg); color: var(--muted);
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
-  padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--border);
+  padding: 9px 8px; text-align: left; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
-.items-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.items-table td { padding: 5px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .items-table tr:last-child td { border-bottom: none; }
 .items-table input {
-  width: 100%; padding: 8px 10px;
+  width: 100%; padding: 7px 8px;
   background: var(--surface2); border: 1.5px solid var(--border);
-  border-radius: 8px; font-family: inherit; font-size: 13px; color: var(--text);
+  border-radius: 7px; font-family: inherit; font-size: 12px; color: var(--text);
   outline: none; transition: all .2s;
 }
-.items-table input:focus { border-color: var(--violet); background: rgba(167,139,250,.1); box-shadow: 0 0 0 3px rgba(167,139,250,0.15); }
-.items-table .desc-col { width: 45%; }
-.items-table .qty-col  { width: 15%; }
-.items-table .rate-col { width: 22%; }
-.items-table .amt-col  { width: 15%; font-weight: 600; color: var(--violet); padding-left: 10px; }
+.items-table input:focus { border-color: var(--violet); background: rgba(167,139,250,.1); }
+.items-table .desc-col { width: 32%; }
+.items-table .qty-col  { width: 8%;  }
+.items-table .unit-col { width: 10%; }
+.items-table .rate-col { width: 14%; }
+.items-table .tax-col  { width: 9%;  }
+.items-table .disc-col { width: 9%;  }
+.items-table .amt-col  { width: 12%; font-weight: 600; color: var(--violet); padding-left: 8px; white-space:nowrap; }
 .del-row-btn {
-  background: none; border: none; cursor: pointer; color: var(--coral); font-size: 16px; padding: 4px 6px;
+  background: none; border: none; cursor: pointer; color: var(--coral); font-size: 15px; padding: 3px 5px;
   border-radius: 6px; transition: background .2s;
 }
 .del-row-btn:hover { background: var(--coral-l); }
+
+/* Advanced columns toggle */
+.adv-toggle { display:flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:0;cursor:pointer;color:var(--violet);font-weight:600; }
+.adv-toggle input { accent-color:var(--violet);width:14px;height:14px;cursor:pointer; }
+.adv-col { display:none; }
+.advanced-mode .adv-col { display:table-cell !important; }
 
 /* Totals */
 .totals-box {
@@ -97,40 +111,23 @@
 .preview-body { padding: 30px; min-height: 500px; }
 
 /* Invoice preview styles */
-#invoiceDoc, #invoiceDoc * {
-  color: #1A1A2E;
-}
-#invoiceDoc {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.inv-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #eee;
-}
+#invoiceDoc, #invoiceDoc * { color: #1A1A2E; }
+#invoiceDoc { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; line-height: 1.6; }
+.inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #eee; }
 .inv-company-name { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
 .inv-company-email { font-size: 12px; color: #6B6B8A !important; }
 .inv-logo { max-height: 56px; max-width: 140px; object-fit: contain; border-radius: 6px; }
-.inv-badge {
-  font-size: 28px; font-weight: 900; letter-spacing: -.5px;
-  text-transform: uppercase; opacity: .12; text-align: right; line-height: 1;
-}
+.inv-badge { font-size: 28px; font-weight: 900; letter-spacing: -.5px; text-transform: uppercase; opacity: .12; text-align: right; line-height: 1; }
 .inv-meta { display: flex; justify-content: space-between; margin-bottom: 24px; }
-.inv-bill-to { }
 .inv-bill-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6B6B8A !important; margin-bottom: 6px; }
 .inv-bill-name { font-size: 15px; font-weight: 700; }
 .inv-details { text-align: right; font-size: 12px; color: #6B6B8A !important; }
 .inv-details div { margin-bottom: 4px; }
 .inv-details strong { color: #1A1A2E !important; }
 .inv-items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
-.inv-items-table th {
-  padding: 9px 12px; text-align: left;
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
-  border-bottom: 2px solid currentColor; opacity: .7;
-}
+.inv-items-table th { padding: 9px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; border-bottom: 2px solid currentColor; opacity: .7; }
 .inv-items-table th:last-child, .inv-items-table td:last-child { text-align: right; }
-.inv-items-table td { padding: 9px 12px; border-bottom: 1px solid #f0eeff; }
+.inv-items-table td { padding: 9px 10px; border-bottom: 1px solid #f0eeff; }
 .inv-items-table tr:last-child td { border-bottom: none; }
 .inv-totals { display: flex; justify-content: flex-end; margin-bottom: 24px; }
 .inv-totals-box { min-width: 220px; }
@@ -140,33 +137,30 @@
 .inv-footer { font-size: 11px; color: #A09CB8 !important; text-align: center; padding-top: 20px; border-top: 1px solid #eee; }
 
 .theme-dots { display: flex; gap: 8px; }
-.theme-dot {
-  width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
-  border: 3px solid transparent; transition: all .2s;
-}
+.theme-dot { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: all .2s; }
 .theme-dot.selected { border-color: var(--text); transform: scale(1.15); }
 
 .logo-preview { display: none; margin-top: 8px; }
 .logo-preview img { height: 48px; border-radius: 8px; border: 1px solid var(--border); }
 
-/* ── Print mode: show only the invoice document ── */
+/* Email modal */
+.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px;width:100%;max-width:440px;display:flex;flex-direction:column;gap:16px; }
+.modal-title { font-size:17px;font-weight:800;color:var(--text); }
+.modal-close { background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;margin-left:auto; }
+
 @media print {
   body.print-mode .sidebar,
   body.print-mode .topbar,
   body.print-mode .builder-form,
   body.print-mode .preview-toolbar,
-  body.print-mode #actionBtns {
-    display: none !important;
-  }
+  body.print-mode #actionBtns { display: none !important; }
   body.print-mode .main-content { margin-left: 0 !important; }
   body.print-mode .page-body { padding: 0 !important; }
   body.print-mode .preview-sticky { position: static !important; }
   body.print-mode .builder-grid { grid-template-columns: 1fr !important; }
-  body.print-mode #invoiceDoc {
-    box-shadow: none !important;
-    border: none !important;
-    margin: 0 !important;
-  }
+  body.print-mode #invoiceDoc { box-shadow: none !important; border: none !important; margin: 0 !important; }
 }
 </style>
 </head>
@@ -176,21 +170,24 @@
   <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
 <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 <aside class="sidebar">
-  <div class="sb-logo">
-    <img src="logo.jpg" alt="FineInvoice">
-    <span>FineInvoice</span>
-  </div>
-  <nav class="sb-nav">
-    <a href="dashboard.html"><span class="ni">🏠</span>Dashboard</a>
-    <a href="app.html" class="active"><span class="ni">✏️</span>New Invoice</a>
-    <a href="invoices.html"><span class="ni">📋</span>Invoices</a>
-    <a href="customers.html"><span class="ni">👥</span>Customers</a>
-    <a href="payment.html"><span class="ni">💳</span>Billing</a>
-  </nav>
-  <div class="sb-footer">
-    <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
-  </div>
-</aside>
+    <div class="sb-logo">
+      <img src="logo.jpg" alt="FineInvoice">
+      <span>FineInvoice</span>
+    </div>
+    <nav class="sb-nav">
+      <a href="dashboard.html"><span class="ni">🏠</span>Dashboard</a>
+      <a href="app.html" class="active"><span class="ni">✏️</span>New Invoice</a>
+      <a href="invoices.html"><span class="ni">📋</span>Invoices</a>
+      <a href="templates.html"><span class="ni">📄</span>Templates</a>
+      <a href="receipt.html"><span class="ni">🧾</span>Receipts</a>
+      <a href="reports.html"><span class="ni">📊</span>Reports</a>
+      <a href="customers.html"><span class="ni">👥</span>Customers</a>
+      <a href="payment.html"><span class="ni">💳</span>Billing</a>
+    </nav>
+    <div class="sb-footer">
+      <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
+    </div>
+  </aside>
 
   <div class="main-content">
     <div class="topbar">
@@ -206,7 +203,7 @@
 
           <!-- From -->
           <div class="form-section">
-            <div class="form-section-head">🏢 Your Business</div>
+            <div class="form-section-head"><span class="form-section-head-left">🏢 Your Business</span></div>
             <div class="form-section-body">
               <div class="form-group" style="margin:0">
                 <label class="form-label">Company / Freelancer Name</label>
@@ -226,7 +223,7 @@
 
           <!-- Bill To -->
           <div class="form-section">
-            <div class="form-section-head">👤 Bill To</div>
+            <div class="form-section-head"><span class="form-section-head-left">👤 Bill To</span></div>
             <div class="form-section-body">
               <div class="form-row">
                 <div class="form-group" style="margin:0">
@@ -247,7 +244,7 @@
 
           <!-- Invoice Details -->
           <div class="form-section">
-            <div class="form-section-head">🗒️ Invoice Details</div>
+            <div class="form-section-head"><span class="form-section-head-left">🗒️ Invoice Details</span></div>
             <div class="form-section-body">
               <div class="form-row">
                 <div class="form-group" style="margin:0">
@@ -280,7 +277,7 @@
 
           <!-- Theme -->
           <div class="form-section">
-            <div class="form-section-head">🎨 Invoice Theme</div>
+            <div class="form-section-head"><span class="form-section-head-left">🎨 Invoice Theme</span></div>
             <div class="form-section-body">
               <div class="theme-dots" id="themeDots">
                 <div class="theme-dot selected" style="background:#6C3FF5" data-color="#6C3FF5" onclick="setTheme(this)" title="Electric Violet"></div>
@@ -295,15 +292,24 @@
 
           <!-- Items -->
           <div class="form-section">
-            <div class="form-section-head">📦 Line Items</div>
+            <div class="form-section-head">
+              <span class="form-section-head-left">📦 Line Items</span>
+              <label class="adv-toggle">
+                <input type="checkbox" id="advancedCols" onchange="toggleAdvancedCols()">
+                Advanced Columns
+              </label>
+            </div>
             <div class="form-section-body">
-              <div class="table-wrap">
-                <table class="items-table">
+              <div class="table-wrap" style="overflow-x:auto">
+                <table class="items-table" id="itemsTable">
                   <thead>
                     <tr>
                       <th class="desc-col">Description</th>
                       <th class="qty-col">Qty</th>
+                      <th class="adv-col unit-col">Unit</th>
                       <th class="rate-col">Rate</th>
+                      <th class="adv-col tax-col">Tax%</th>
+                      <th class="adv-col disc-col">Disc%</th>
                       <th class="amt-col">Amount</th>
                       <th></th>
                     </tr>
@@ -316,11 +322,11 @@
               <div class="totals-box" style="margin-top:8px">
                 <div class="form-row" style="margin-bottom:4px">
                   <div>
-                    <label class="form-label">Tax %</label>
+                    <label class="form-label">Tax % <span style="font-size:11px;color:var(--muted)">(global)</span></label>
                     <input class="form-input" id="tax" type="number" value="0" min="0" max="100" oninput="livePreview()">
                   </div>
                   <div>
-                    <label class="form-label">Discount %</label>
+                    <label class="form-label">Discount % <span style="font-size:11px;color:var(--muted)">(global)</span></label>
                     <input class="form-input" id="discount" type="number" value="0" min="0" max="100" oninput="livePreview()">
                   </div>
                 </div>
@@ -334,17 +340,18 @@
 
           <!-- Notes -->
           <div class="form-section">
-            <div class="form-section-head">📝 Notes</div>
+            <div class="form-section-head"><span class="form-section-head-left">📝 Notes</span></div>
             <div class="form-section-body">
               <textarea class="form-textarea" id="notes" placeholder="Payment terms, bank details, thank you note..." oninput="livePreview()"></textarea>
             </div>
           </div>
 
           <!-- Actions -->
-          <div style="display:flex;gap:12px;flex-wrap:wrap" id="actionBtns">
-            <button class="btn btn-primary btn-lg" onclick="saveInvoice()" style="flex:1">💾 Save Invoice</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap" id="actionBtns">
+            <button class="btn btn-primary btn-lg" onclick="saveInvoice()" style="flex:1">💾 Save</button>
             <button class="btn btn-outline btn-lg" onclick="printInvoice()" style="flex:1">🖨️ Print</button>
-            <button class="btn btn-outline btn-lg" onclick="downloadPDF()" style="flex:1">📥 Download PDF</button>
+            <button class="btn btn-outline btn-lg" onclick="downloadPDF()" style="flex:1">📥 PDF</button>
+            <button class="btn btn-outline btn-lg" onclick="openEmailModal()" style="flex:1;border-color:var(--mint);color:var(--mint)">✉️ Email</button>
           </div>
 
         </div>
@@ -371,40 +378,68 @@
   </div>
 </div>
 
+<!-- Email Invoice Modal -->
+<div class="modal-overlay" id="emailModal">
+  <div class="modal-box">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div class="modal-title">✉️ Email Invoice</div>
+      <button class="modal-close" onclick="closeEmailModal()">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted)">Send this invoice directly to your client's inbox. Requires <strong style="color:var(--violet)">Lifetime</strong> plan.</p>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Recipient Email</label>
+      <input class="form-input" id="emailTo" type="email" placeholder="client@email.com">
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Recipient Name</label>
+      <input class="form-input" id="emailName" placeholder="Client Name">
+    </div>
+    <div id="emailStatus" style="font-size:13px;color:var(--muted)"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" onclick="closeEmailModal()" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" onclick="sendEmail()" style="flex:1" id="emailSendBtn">Send Invoice ✉️</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.emailjs.com/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="js/utils.js"></script>
 <script>
 requireAuth();
 renderUserChip('userChip');
-setActiveNav();
 
-let logoData = '';
-let themeColor = '#6C3FF5';
+let logoData    = '';
+let themeColor  = '#6C3FF5';
+let advancedMode = false;
 
 // Init defaults
 document.getElementById('invNumber').value = 'INV-' + String(getInvoices().length + 1).padStart(3,'0');
-document.getElementById('invDate').value = new Date().toISOString().split('T')[0];
+document.getElementById('invDate').value   = new Date().toISOString().split('T')[0];
 const due = new Date(); due.setDate(due.getDate()+14);
-document.getElementById('dueDate').value = due.toISOString().split('T')[0];
-
-// Pre-fill from user
+document.getElementById('dueDate').value   = due.toISOString().split('T')[0];
 const user = getCurrentUser();
 if(user) document.getElementById('company').value = user.name || '';
 
-// Start with 3 blank rows
 addItem(); addItem(); addItem();
 livePreview();
 
-// ── Load a specific saved invoice if arriving via ?invoice=ID (e.g. right after unlocking a plan) ──
+// ── Advanced columns toggle ──
+function toggleAdvancedCols(){
+  advancedMode = document.getElementById('advancedCols').checked;
+  document.getElementById('itemsTable').classList.toggle('advanced-mode', advancedMode);
+  livePreview();
+}
+
+// ── Load a saved invoice via ?invoice=ID ──
 function loadInvoiceById(id){
   const invoices = getInvoices();
   const inv = invoices.find(i => i.id === id) || invoices[invoices.length - 1];
   if(!inv) return false;
-
-  document.getElementById('company').value   = inv.company   || '';
-  document.getElementById('customer').value  = inv.customer  || '';
+  document.getElementById('company').value    = inv.company   || '';
+  document.getElementById('customer').value   = inv.customer  || '';
   document.getElementById('bizEmail').value   = inv.bizEmail  || '';
   document.getElementById('custEmail').value  = inv.custEmail || '';
   document.getElementById('currency').value   = inv.currency  || 'PKR';
@@ -414,47 +449,38 @@ function loadInvoiceById(id){
   document.getElementById('notes').value      = inv.notes     || '';
   themeColor = inv.themeColor || themeColor;
   logoData   = inv.logoData   || '';
-  if(logoData){
-    document.getElementById('logoImg').src = logoData;
-    document.getElementById('logoPreview').style.display = 'block';
-  }
-
-  // Rebuild item rows
+  if(logoData){ document.getElementById('logoImg').src = logoData; document.getElementById('logoPreview').style.display = 'block'; }
   const tbody = document.getElementById('itemsBody');
   tbody.innerHTML = '';
-  (inv.items && inv.items.length ? inv.items : [{desc:'',qty:1,rate:0}]).forEach(()=>{});
   if(inv.items && inv.items.length){
     inv.items.forEach(it => {
       addItem();
-      const rows = tbody.children;
-      const tr = rows[rows.length-1];
+      const tr  = tbody.children[tbody.children.length-1];
       const ins = tr.querySelectorAll('input');
       ins[0].value = it.desc || '';
       ins[1].value = it.qty  || 1;
-      ins[2].value = it.rate || 0;
+      ins[2].value = it.unit || '';
+      ins[3].value = it.rate || 0;
+      ins[4].value = it.itemTax  || 0;
+      ins[5].value = it.itemDisc || 0;
     });
-  } else {
-    addItem(); addItem(); addItem();
-  }
+  } else { addItem(); addItem(); addItem(); }
   livePreview();
   return true;
 }
 
-const urlParams = new URLSearchParams(window.location.search);
-const invoiceIdFromUrl = urlParams.get('invoice');
-let arrivedFromUnlock = false;
+const urlParams         = new URLSearchParams(window.location.search);
+const invoiceIdFromUrl  = urlParams.get('invoice');
+const currentDraftId    = invoiceIdFromUrl || ('DRAFT-' + Date.now());
+let   arrivedFromUnlock = false;
 
 if(invoiceIdFromUrl){
   const loaded = loadInvoiceById(invoiceIdFromUrl);
-  if(loaded){
-    arrivedFromUnlock = true;
-    showToast('Invoice loaded — ready to print or download! 🎉', 'success', 3500);
-  }
+  if(loaded){ arrivedFromUnlock = true; showToast('Invoice loaded — ready to download! 🎉', 'success', 3500); }
 }
 
 function loadLogo(input){
-  const file = input.files[0];
-  if(!file) return;
+  const file = input.files[0]; if(!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     logoData = e.target.result;
@@ -474,41 +500,52 @@ function setTheme(dot){
 
 function addItem(){
   const tbody = document.getElementById('itemsBody');
-  const idx = tbody.children.length;
-  const tr = document.createElement('tr');
+  const idx   = tbody.children.length;
+  const tr    = document.createElement('tr');
   tr.dataset.idx = idx;
   tr.innerHTML = `
     <td class="desc-col"><input placeholder="Service / item description" oninput="livePreview()"></td>
     <td class="qty-col"><input type="number" value="1" min="0" oninput="livePreview()"></td>
+    <td class="adv-col unit-col"><input placeholder="hrs/pcs" oninput="livePreview()"></td>
     <td class="rate-col"><input type="number" value="0" min="0" oninput="livePreview()"></td>
+    <td class="adv-col tax-col"><input type="number" value="0" min="0" max="100" oninput="livePreview()"></td>
+    <td class="adv-col disc-col"><input type="number" value="0" min="0" max="100" oninput="livePreview()"></td>
     <td class="amt-col" id="amt_${idx}">0.00</td>
     <td><button class="del-row-btn" onclick="removeItem(this)">✕</button></td>
   `;
   tbody.appendChild(tr);
+  if(advancedMode) tr.querySelectorAll('.adv-col').forEach(td => td.style.display = 'table-cell');
   livePreview();
 }
 
-function removeItem(btn){
-  btn.closest('tr').remove();
-  livePreview();
-}
+function removeItem(btn){ btn.closest('tr').remove(); livePreview(); }
 
 function calcTotals(){
-  let subtotal = 0;
-  document.querySelectorAll('#itemsBody tr').forEach((tr,i) => {
-    const inputs = tr.querySelectorAll('input');
-    const qty  = parseFloat(inputs[1].value)||0;
-    const rate = parseFloat(inputs[2].value)||0;
-    const amt  = qty * rate;
-    subtotal += amt;
+  let subtotal = 0; let totalTax = 0; let totalDisc = 0;
+  document.querySelectorAll('#itemsBody tr').forEach((tr, i) => {
+    const ins     = tr.querySelectorAll('input');
+    const qty     = parseFloat(ins[0+1]?.value)||0;  // ins[0]=desc,1=qty,2=unit,3=rate,4=tax,5=disc
+    const rate    = parseFloat(ins[3]?.value)||0;
+    const itemTax = advancedMode ? (parseFloat(ins[4]?.value)||0) : 0;
+    const itemDisc= advancedMode ? (parseFloat(ins[5]?.value)||0) : 0;
+    const base    = qty * rate;
+    const tAmt    = base * itemTax  / 100;
+    const dAmt    = base * itemDisc / 100;
+    const lineAmt = base + tAmt - dAmt;
+    subtotal  += base;
+    totalTax  += tAmt;
+    totalDisc += dAmt;
     const amtCell = tr.querySelector('[id^="amt_"]');
-    if(amtCell) amtCell.textContent = amt.toFixed(2);
+    if(amtCell) amtCell.textContent = lineAmt.toFixed(2);
   });
-  const taxPct      = parseFloat(document.getElementById('tax').value)||0;
-  const discountPct = parseFloat(document.getElementById('discount').value)||0;
-  const taxAmt      = subtotal * taxPct / 100;
-  const discAmt     = subtotal * discountPct / 100;
-  const total       = subtotal + taxAmt - discAmt;
+  // Global tax / discount applied on top of per-line
+  const globalTaxPct  = parseFloat(document.getElementById('tax').value)||0;
+  const globalDiscPct = parseFloat(document.getElementById('discount').value)||0;
+  const globalTax     = subtotal * globalTaxPct  / 100;
+  const globalDisc    = subtotal * globalDiscPct / 100;
+  const taxAmt  = totalTax  + globalTax;
+  const discAmt = totalDisc + globalDisc;
+  const total   = subtotal + taxAmt - discAmt;
   return { subtotal, taxAmt, discAmt, total };
 }
 
@@ -517,40 +554,46 @@ function livePreview(){
   const currency = document.getElementById('currency').value;
   const sym = { PKR:'₨', USD:'$', EUR:'€', AED:'AED ', GBP:'£' }[currency] || currency + ' ';
 
-  // Update totals sidebar
-  document.getElementById('subtotalDisplay').textContent  = sym + subtotal.toFixed(2);
-  document.getElementById('taxDisplay').textContent       = sym + taxAmt.toFixed(2);
-  document.getElementById('discountDisplay').textContent  = '−' + sym + discAmt.toFixed(2);
-  document.getElementById('totalDisplay').textContent     = sym + total.toFixed(2);
+  document.getElementById('subtotalDisplay').textContent = sym + subtotal.toFixed(2);
+  document.getElementById('taxDisplay').textContent      = sym + taxAmt.toFixed(2);
+  document.getElementById('discountDisplay').textContent = '−' + sym + discAmt.toFixed(2);
+  document.getElementById('totalDisplay').textContent    = sym + total.toFixed(2);
 
-  // Build items rows
+  const isAdv = advancedMode;
   const rows = [...document.querySelectorAll('#itemsBody tr')].map(tr => {
-    const ins = tr.querySelectorAll('input');
+    const ins  = tr.querySelectorAll('input');
     const desc = ins[0].value || '—';
     const qty  = parseFloat(ins[1].value)||0;
-    const rate = parseFloat(ins[2].value)||0;
-    const amt  = qty * rate;
+    const unit = ins[2].value || '';
+    const rate = parseFloat(ins[3].value)||0;
+    const itax = isAdv ? (parseFloat(ins[4].value)||0) : 0;
+    const idisc= isAdv ? (parseFloat(ins[5].value)||0) : 0;
+    const base = qty * rate;
+    const amt  = base + base*itax/100 - base*idisc/100;
+    const qtyLabel = unit ? `${qty} ${unit}` : qty;
     return `<tr>
       <td>${desc}</td>
-      <td style="text-align:center">${qty}</td>
+      <td style="text-align:center">${qtyLabel}</td>
+      ${isAdv ? `<td style="text-align:right">${itax}%</td><td style="text-align:right">${idisc}%</td>` : ''}
       <td style="text-align:right">${sym}${rate.toFixed(2)}</td>
       <td style="text-align:right;font-weight:600">${sym}${amt.toFixed(2)}</td>
     </tr>`;
   }).join('');
 
-  const company  = document.getElementById('company').value   || 'Your Company';
-  const bizEmail = document.getElementById('bizEmail').value  || '';
-  const customer = document.getElementById('customer').value  || 'Client Name';
-  const custEmail= document.getElementById('custEmail').value || '';
-  const custAddr = document.getElementById('custAddress').value || '';
-  const invNum   = document.getElementById('invNumber').value || 'INV-001';
-  const invDate  = document.getElementById('invDate').value   || '';
-  const dueDate  = document.getElementById('dueDate').value   || '';
-  const notes    = document.getElementById('notes').value     || '';
-
-  const logoHtml = logoData
+  const company   = document.getElementById('company').value   || 'Your Company';
+  const bizEmail  = document.getElementById('bizEmail').value  || '';
+  const customer  = document.getElementById('customer').value  || 'Client Name';
+  const custEmail = document.getElementById('custEmail').value || '';
+  const custAddr  = document.getElementById('custAddress').value || '';
+  const invNum    = document.getElementById('invNumber').value || 'INV-001';
+  const invDate   = document.getElementById('invDate').value   || '';
+  const dueDate   = document.getElementById('dueDate').value   || '';
+  const notes     = document.getElementById('notes').value     || '';
+  const logoHtml  = logoData
     ? `<img src="${logoData}" class="inv-logo">`
     : `<div class="inv-badge" style="color:${themeColor}">INVOICE</div>`;
+
+  const advHeaders = isAdv ? `<th style="text-align:right;width:8%">Tax%</th><th style="text-align:right;width:8%">Disc%</th>` : '';
 
   document.getElementById('invoiceDoc').innerHTML = `
     <div class="inv-header">
@@ -577,10 +620,11 @@ function livePreview(){
     <table class="inv-items-table">
       <thead>
         <tr style="color:${themeColor}">
-          <th style="width:50%">Description</th>
+          <th style="width:${isAdv?'34%':'44%'}">Description</th>
           <th style="text-align:center;width:10%">Qty</th>
-          <th style="text-align:right;width:20%">Rate</th>
-          <th style="text-align:right;width:20%">Amount</th>
+          ${advHeaders}
+          <th style="text-align:right;width:18%">Rate</th>
+          <th style="text-align:right;width:18%">Amount</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -588,8 +632,8 @@ function livePreview(){
     <div class="inv-totals">
       <div class="inv-totals-box">
         <div class="inv-total-row"><span>Subtotal</span><strong>${sym}${subtotal.toFixed(2)}</strong></div>
-        <div class="inv-total-row"><span>Tax (${document.getElementById('tax').value||0}%)</span><strong>${sym}${taxAmt.toFixed(2)}</strong></div>
-        <div class="inv-total-row"><span>Discount (${document.getElementById('discount').value||0}%)</span><strong>−${sym}${discAmt.toFixed(2)}</strong></div>
+        <div class="inv-total-row"><span>Tax</span><strong>${sym}${taxAmt.toFixed(2)}</strong></div>
+        <div class="inv-total-row"><span>Discount</span><strong>−${sym}${discAmt.toFixed(2)}</strong></div>
         <div class="inv-grand" style="color:${themeColor}"><span>Total</span><span>${sym}${total.toFixed(2)}</span></div>
       </div>
     </div>
@@ -602,76 +646,56 @@ function saveInvoice(){
   const company  = document.getElementById('company').value;
   const customer = document.getElementById('customer').value;
   if(!company || !customer){ showToast('Please enter company and customer name', 'error'); return; }
-
   const { total } = calcTotals();
-  const currency  = document.getElementById('currency').value;
   const invoices  = getInvoices();
+  // Reuse currentDraftId as the invoice's own id — this is the same id any
+  // paid download/print credit was consumed against (see hasInvoiceAccess/
+  // consumeInvoiceCredit below). Assigning a fresh id here would silently
+  // decouple the saved invoice from the credit already spent on it, so
+  // reopening it later from invoices.html would ask the customer to pay
+  // again for something they already unlocked.
+  const existingIdx = invoices.findIndex(i => i.id === currentDraftId);
   const inv = {
-    id:       'INV-' + Date.now(),
-    company,
-    customer,
-    bizEmail: document.getElementById('bizEmail').value,
-    custEmail:document.getElementById('custEmail').value,
-    currency,
-    total,
-    invNumber:document.getElementById('invNumber').value,
-    invDate:  document.getElementById('invDate').value,
-    dueDate:  document.getElementById('dueDate').value,
-    notes:    document.getElementById('notes').value,
-    themeColor,
-    logoData,
+    id: currentDraftId, company, customer,
+    bizEmail:  document.getElementById('bizEmail').value,
+    custEmail: document.getElementById('custEmail').value,
+    currency:  document.getElementById('currency').value,
+    total, invNumber: document.getElementById('invNumber').value,
+    invDate: document.getElementById('invDate').value,
+    dueDate: document.getElementById('dueDate').value,
+    notes:   document.getElementById('notes').value,
+    themeColor, logoData,
     items: [...document.querySelectorAll('#itemsBody tr')].map(tr => {
       const ins = tr.querySelectorAll('input');
-      return { desc: ins[0].value, qty: ins[1].value, rate: ins[2].value };
+      return { desc: ins[0].value, qty: ins[1].value, unit: ins[2].value, rate: ins[3].value, itemTax: ins[4].value, itemDisc: ins[5].value };
     }),
-    date: new Date().toISOString(),
-    status: 'saved'
+    date: new Date().toISOString(), status: 'saved'
   };
-  invoices.push(inv);
+  if(existingIdx >= 0) invoices[existingIdx] = inv;
+  else invoices.push(inv);
   saveInvoices(invoices);
-  showToast('Invoice saved successfully! ✅', 'success');
+  showToast('Invoice saved ✅', 'success');
 }
 
-const FREE_PDF_LIMIT = 3;
-function getRemainingFree(){
-  const used = parseInt(localStorage.getItem('fi_downloads')||'0');
-  return Math.max(0, FREE_PDF_LIMIT - used);
-}
-
-function printInvoice(){
-  const license   = getLicense();
-  const user      = getCurrentUser();
-  const plan      = license.plan || (user && user.plan) || 'free';
-  const remaining = getRemainingFree();
-  if(plan === 'free' && remaining <= 0){
-    if(confirm('You\'ve used all 3 free PDFs.\n\nUpgrade to keep going:\nPKR 199 / USD $2 per invoice\nor PKR 4,999 / USD $25 for Lifetime access.\n\nGo to Billing page?')){
-      window.location.href = 'payment.html';
-    }
+async function printInvoice(){
+  const u = getCurrentUser();
+  if(!hasInvoiceAccess(u, currentDraftId)){
+    if(confirm('Printing requires a paid plan.\n\nPKR 199 / $2 per invoice\nor PKR 4,999 / $25 for Lifetime.\n\nGo to Billing?')) window.location.href = 'payment.html';
     return;
   }
+  await consumeInvoiceCredit(u, currentDraftId);
   document.body.classList.add('print-mode');
   window.print();
   setTimeout(() => document.body.classList.remove('print-mode'), 500);
-  if(plan === 'free'){
-    const dl = parseInt(localStorage.getItem('fi_downloads')||'0') + 1;
-    localStorage.setItem('fi_downloads', dl);
-    const left = FREE_PDF_LIMIT - dl;
-    if(left > 0) showToast('Print done! ' + left + ' free PDF' + (left>1?'s':'') + ' remaining.', 'success');
-    else showToast('Last free PDF used! Upgrade for more.', 'info', 4000);
-  }
 }
 
 async function downloadPDF(){
-  const license   = getLicense();
-  const user      = getCurrentUser();
-  const plan      = license.plan || (user && user.plan) || 'free';
-  const remaining = getRemainingFree();
-  if(plan === 'free' && remaining <= 0){
-    if(confirm('You\'ve used all 3 free PDFs.\n\nUpgrade to keep going:\nPKR 199 / USD $2 per PDF\nor PKR 4,999 / USD $25 for Lifetime access.\n\nGo to Billing page?')){
-      window.location.href = 'payment.html';
-    }
+  const u = getCurrentUser();
+  if(!hasInvoiceAccess(u, currentDraftId)){
+    if(confirm('Download requires a paid plan.\n\nGo to Billing?')) window.location.href = 'payment.html';
     return;
   }
+  await consumeInvoiceCredit(u, currentDraftId);
   showToast('Generating PDF…', 'info');
   const el = document.getElementById('invoiceDoc');
   try {
@@ -686,26 +710,84 @@ async function downloadPDF(){
     doc.save(invNum + '.pdf');
     const dl = parseInt(localStorage.getItem('fi_downloads')||'0') + 1;
     localStorage.setItem('fi_downloads', dl);
-    if(plan === 'free'){
-      const left = FREE_PDF_LIMIT - dl;
-      if(left > 0) showToast('PDF downloaded! 🎉 ' + left + ' free PDF' + (left>1?'s':'') + ' remaining.', 'success');
-      else showToast('PDF downloaded! 🎉 Last free PDF used — upgrade for more.', 'info', 4500);
-    } else {
-      showToast('PDF downloaded! 🎉', 'success');
-    }
-  } catch(e) {
-    showToast('PDF generation failed. Try again.', 'error');
+    showToast('PDF downloaded! 🎉', 'success');
+  } catch(e){ showToast('PDF generation failed. Try again.', 'error'); }
+}
+
+// ── Email Invoice (Lifetime only) ──
+function openEmailModal(){
+  const u = getCurrentUser();
+  if(!requirePlan(u, 'lifetime', 'Email Invoice')) return;
+  // Pre-fill from form
+  document.getElementById('emailTo').value   = document.getElementById('custEmail').value || '';
+  document.getElementById('emailName').value = document.getElementById('customer').value  || '';
+  document.getElementById('emailStatus').textContent = '';
+  document.getElementById('emailModal').classList.add('open');
+}
+function closeEmailModal(){ document.getElementById('emailModal').classList.remove('open'); }
+
+async function sendEmail(){
+  const toEmail = document.getElementById('emailTo').value.trim();
+  const toName  = document.getElementById('emailName').value.trim();
+  if(!toEmail){ showToast('Enter recipient email', 'error'); return; }
+
+  const btn = document.getElementById('emailSendBtn');
+  const status = document.getElementById('emailStatus');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  status.textContent = '';
+
+  const fromName = document.getElementById('company').value || 'FineInvoice';
+  const invNum   = document.getElementById('invNumber').value || 'INV-001';
+
+  const { error } = await sendInvoiceByEmail(toEmail, toName, fromName, invNum, '');
+  btn.disabled = false; btn.textContent = 'Send Invoice ✉️';
+
+  if(error){
+    status.style.color = 'var(--coral)';
+    status.textContent = '⚠️ Send failed — check EmailJS setup in utils.js';
+  } else {
+    status.style.color = 'var(--mint)';
+    status.textContent = '✅ Invoice sent to ' + toEmail;
+    setTimeout(closeEmailModal, 2000);
+    showToast('Invoice emailed to ' + toEmail, 'success');
   }
 }
 
-// If we just arrived here right after unlocking a plan, draw attention to the action buttons
+// ── Load template if arriving from templates.html ──
+const tplParam = urlParams.get('template');
+if(tplParam){
+  try {
+    const tpl = JSON.parse(sessionStorage.getItem('fi_template') || 'null');
+    if(tpl){
+      sessionStorage.removeItem('fi_template');
+      // Clear existing rows
+      document.getElementById('itemsBody').innerHTML = '';
+      // Load items
+      tpl.items.forEach(it => {
+        addItem();
+        const tbody = document.getElementById('itemsBody');
+        const tr    = tbody.children[tbody.children.length - 1];
+        const ins   = tr.querySelectorAll('input');
+        ins[0].value = it.desc || '';
+        ins[1].value = it.qty  || 1;
+        ins[2].value = it.unit || '';
+        ins[3].value = it.rate || 0;
+        ins[4].value = 0;
+        ins[5].value = 0;
+      });
+      if(tpl.notes)  document.getElementById('notes').value = tpl.notes;
+      if(tpl.color)  { themeColor = tpl.color; document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('selected')); }
+      livePreview();
+      showToast(`Template "${tpl.name}" loaded! ✅`, 'success', 3000);
+    }
+  } catch(e){ console.error('Template load error:', e); }
+}
+
 if(arrivedFromUnlock){
   setTimeout(() => {
     const btns = document.getElementById('actionBtns');
     if(btns){
-      btns.style.transition = 'box-shadow .3s';
-      btns.style.boxShadow = '0 0 0 4px rgba(108,63,245,0.25)';
-      btns.style.borderRadius = '14px';
+      btns.style.transition = 'box-shadow .3s'; btns.style.boxShadow = '0 0 0 4px rgba(108,63,245,0.25)'; btns.style.borderRadius = '14px';
       btns.scrollIntoView({ behavior:'smooth', block:'center' });
       setTimeout(() => { btns.style.boxShadow = 'none'; }, 2500);
     }

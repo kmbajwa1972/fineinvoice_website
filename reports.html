@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="logo.jpg">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reports — FineInvoice</title>
+<link rel="stylesheet" href="css/theme.css">
+<style>
+.report-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+@media(max-width:1100px){ .report-grid{grid-template-columns:repeat(2,1fr);} }
+.stat { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:22px; position:relative; overflow:hidden; transition:border-color .2s; }
+.stat:hover { border-color:rgba(167,139,250,.3); }
+.stat-icon { font-size:24px; margin-bottom:12px; }
+.stat-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:6px; }
+.stat-val { font-size:28px; font-weight:900; line-height:1; }
+.stat.v .stat-val { color:var(--violet); }
+.stat.g .stat-val { color:var(--mint); }
+.stat.c .stat-val { color:var(--coral); }
+.stat.a .stat-val { color:var(--amber); }
+
+.report-section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:24px; }
+.report-head { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.report-title { font-size:15px; font-weight:700; }
+.report-body { padding:24px; }
+
+/* Bar chart */
+.bar-chart { display:flex; flex-direction:column; gap:12px; }
+.bar-row { display:flex; align-items:center; gap:12px; font-size:13px; }
+.bar-label { width:120px; color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+.bar-track { flex:1; background:var(--surface2); border-radius:99px; height:12px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:99px; transition:width .6s ease; }
+.bar-val { width:80px; text-align:right; font-weight:700; font-size:12px; color:var(--violet); }
+
+/* Invoice table */
+.report-table { width:100%; border-collapse:collapse; font-size:13px; }
+.report-table th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); background:var(--bg); }
+.report-table td { padding:12px 12px; border-bottom:1px solid var(--border); }
+.report-table tr:last-child td { border-bottom:none; }
+.status-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700; text-transform:uppercase; }
+.sb-saved   { background:var(--violet-l); color:var(--violet); }
+.sb-paid    { background:var(--mint-l);   color:var(--mint);   }
+.sb-overdue { background:var(--coral-l);  color:var(--coral);  }
+
+.filter-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
+.filter-btn { padding:7px 18px; border-radius:99px; font-size:12px; font-weight:700; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; font-family:inherit; transition:all .2s; }
+.filter-btn.active { background:var(--violet); border-color:var(--violet); color:#fff; }
+.filter-btn:hover:not(.active) { border-color:var(--violet); color:var(--violet); }
+
+.export-btn { display:inline-flex; align-items:center; gap:7px; padding:8px 16px; border-radius:10px; font-size:12px; font-weight:700; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; font-family:inherit; transition:all .2s; }
+.export-btn:hover { border-color:var(--violet); color:var(--violet); }
+
+.empty-report { text-align:center; padding:60px 20px; color:var(--muted); }
+.empty-report .icon { font-size:48px; margin-bottom:12px; }
+
+.two-col-report { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media(max-width:900px){ .two-col-report{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <img src="logo.jpg" alt="FineInvoice">
+      <span>FineInvoice</span>
+    </div>
+    <nav class="sb-nav">
+      <a href="dashboard.html"><span class="ni">🏠</span>Dashboard</a>
+      <a href="app.html"><span class="ni">✏️</span>New Invoice</a>
+      <a href="invoices.html"><span class="ni">📋</span>Invoices</a>
+      <a href="templates.html"><span class="ni">📄</span>Templates</a>
+      <a href="receipt.html"><span class="ni">🧾</span>Receipts</a>
+      <a href="reports.html" class="active"><span class="ni">📊</span>Reports</a>
+      <a href="customers.html"><span class="ni">👥</span>Customers</a>
+      <a href="payment.html"><span class="ni">💳</span>Billing</a>
+    </nav>
+    <div class="sb-footer">
+      <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">📊 Reports & Analytics</span>
+      <div class="topbar-right" id="userChip"></div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Plan gate banner (shown if not lifetime) -->
+      <div id="gateBanner" style="display:none;background:linear-gradient(135deg,#1a0d3d,#2d1065);border:1px solid rgba(124,58,237,.3);border-radius:16px;padding:24px 28px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div>
+          <div style="font-size:16px;font-weight:800;margin-bottom:4px">📊 Reports — Lifetime Plan Required</div>
+          <div style="font-size:14px;color:var(--muted)">Upgrade to Lifetime ($25) to unlock full analytics and revenue reports.</div>
+        </div>
+        <a href="payment.html" class="btn btn-primary" style="white-space:nowrap">Upgrade to Lifetime →</a>
+      </div>
+
+      <!-- Stats row -->
+      <div class="report-grid" id="statsRow">
+        <div class="stat v"><div class="stat-icon">📄</div><div class="stat-lbl">Total Invoices</div><div class="stat-val" id="rTotalInv">0</div></div>
+        <div class="stat g"><div class="stat-icon">💰</div><div class="stat-lbl">Total Revenue (PKR)</div><div class="stat-val" id="rTotalRev">0</div></div>
+        <div class="stat c"><div class="stat-icon">👥</div><div class="stat-lbl">Unique Customers</div><div class="stat-val" id="rTotalCust">0</div></div>
+        <div class="stat a"><div class="stat-icon">📈</div><div class="stat-lbl">Avg Invoice Value</div><div class="stat-val" id="rAvgVal">0</div></div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar" id="filterBar">
+        <button class="filter-btn active" onclick="setFilter('all',this)">All Time</button>
+        <button class="filter-btn" onclick="setFilter('30',this)">Last 30 Days</button>
+        <button class="filter-btn" onclick="setFilter('90',this)">Last 90 Days</button>
+        <button class="filter-btn" onclick="setFilter('year',this)">This Year</button>
+        <button class="export-btn" onclick="exportCSV()">📤 Export CSV</button>
+      </div>
+
+      <div class="two-col-report">
+        <!-- Revenue by customer -->
+        <div class="report-section">
+          <div class="report-head">
+            <span class="report-title">💰 Revenue by Customer</span>
+          </div>
+          <div class="report-body">
+            <div class="bar-chart" id="customerChart"></div>
+          </div>
+        </div>
+
+        <!-- Invoice status breakdown -->
+        <div class="report-section">
+          <div class="report-head">
+            <span class="report-title">📋 Invoice Status Breakdown</span>
+          </div>
+          <div class="report-body">
+            <div class="bar-chart" id="statusChart"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoice list -->
+      <div class="report-section">
+        <div class="report-head">
+          <span class="report-title">🗂️ Invoice History</span>
+          <span id="invoiceCount" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div class="report-body" style="padding:0">
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Customer</th>
+                  <th>Date</th>
+                  <th>Currency</th>
+                  <th style="text-align:right">Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="invoiceTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/utils.js"></script>
+<script>
+const _u = requireAuth();
+renderUserChip('userChip');
+
+// Plan gate — Lifetime only (see Init below: no real data loads without access)
+const hasAccess = _u && (_u.isAdmin || _u.plan === 'lifetime');
+if(!hasAccess){
+  document.getElementById('gateBanner').style.display = 'flex';
+}
+
+let currentFilter = 'all';
+let allInvoices   = [];
+
+function setFilter(f, btn){
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderReports();
+}
+
+function filterInvoices(invoices){
+  if(currentFilter === 'all') return invoices;
+  const now = new Date();
+  return invoices.filter(inv => {
+    if(!inv.date) return false;
+    const d = new Date(inv.date);
+    if(currentFilter === '30')   return (now - d) <= 30  * 86400000;
+    if(currentFilter === '90')   return (now - d) <= 90  * 86400000;
+    if(currentFilter === 'year') return d.getFullYear() === now.getFullYear();
+    return true;
+  });
+}
+
+function fmt(n){ return parseFloat(n||0).toLocaleString('en-PK', {maximumFractionDigits:0}); }
+
+function renderReports(){
+  const invoices = filterInvoices(allInvoices);
+  const sym = '₨';
+
+  // Stats
+  const total   = invoices.reduce((s, i) => s + parseFloat(i.total||0), 0);
+  const custs   = new Set(invoices.map(i => i.customer).filter(Boolean));
+  const avg     = invoices.length ? total / invoices.length : 0;
+  document.getElementById('rTotalInv').textContent  = invoices.length;
+  document.getElementById('rTotalRev').textContent  = fmt(total);
+  document.getElementById('rTotalCust').textContent = custs.size;
+  document.getElementById('rAvgVal').textContent    = fmt(avg);
+  document.getElementById('invoiceCount').textContent = `${invoices.length} invoice${invoices.length!==1?'s':''}`;
+
+  // Revenue by customer bar chart
+  const byCustomer = {};
+  invoices.forEach(inv => {
+    const k = inv.customer || 'Unknown';
+    byCustomer[k] = (byCustomer[k]||0) + parseFloat(inv.total||0);
+  });
+  const custEntries = Object.entries(byCustomer).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxCust = custEntries[0]?.[1] || 1;
+  const colors  = ['#a78bfa','#00C48C','#ff6b6b','#3AB3FF','#FFB547','#ec4899','#6C3FF5','#00C48C'];
+  document.getElementById('customerChart').innerHTML = custEntries.length
+    ? custEntries.map(([name, val], i) => `
+        <div class="bar-row">
+          <div class="bar-label" title="${name}">${name}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(val/maxCust*100).toFixed(1)}%;background:${colors[i%colors.length]}"></div></div>
+          <div class="bar-val">${sym}${fmt(val)}</div>
+        </div>`).join('')
+    : '<div class="empty-report"><div class="icon">📊</div><div>No data for this period</div></div>';
+
+  // Status breakdown
+  const byStatus = { saved:0, paid:0, overdue:0 };
+  invoices.forEach(inv => { const s = inv.status||'saved'; if(byStatus[s]!==undefined) byStatus[s]++; else byStatus.saved++; });
+  const maxStat = Math.max(...Object.values(byStatus), 1);
+  const statColors = { saved:'#a78bfa', paid:'#00C48C', overdue:'#ff6b6b' };
+  document.getElementById('statusChart').innerHTML = Object.entries(byStatus).map(([st, count]) => `
+    <div class="bar-row">
+      <div class="bar-label">${st.charAt(0).toUpperCase()+st.slice(1)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(count/maxStat*100).toFixed(1)}%;background:${statColors[st]}"></div></div>
+      <div class="bar-val" style="color:${statColors[st]}">${count}</div>
+    </div>`).join('');
+
+  // Invoice table
+  const sorted = [...invoices].sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+  const tbody  = document.getElementById('invoiceTable');
+  if(sorted.length === 0){
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-report" style="padding:40px"><div class="icon">📄</div><div>No invoices found for this period</div></div></td></tr>`;
+    return;
+  }
+  const symMap = { PKR:'₨', USD:'$', EUR:'€', AED:'AED ', GBP:'£' };
+  tbody.innerHTML = sorted.map(inv => {
+    const s     = inv.status || 'saved';
+    const badge = `<span class="status-badge sb-${s}">${s}</span>`;
+    const date  = inv.date ? new Date(inv.date).toLocaleDateString('en-PK') : '—';
+    const curr  = inv.currency || 'PKR';
+    const invSym= symMap[curr] || curr + ' ';
+    return `<tr>
+      <td><strong>${inv.invNumber||inv.id||'—'}</strong></td>
+      <td>${inv.customer||'—'}</td>
+      <td style="color:var(--muted);font-size:12px">${date}</td>
+      <td style="color:var(--muted);font-size:12px">${curr}</td>
+      <td style="text-align:right;font-weight:700;color:var(--violet)">${invSym}${fmt(inv.total)}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCSV(){
+  const invoices = filterInvoices(allInvoices);
+  if(!invoices.length){ showToast('No invoices to export', 'error'); return; }
+  const rows  = [['Invoice #','Customer','Date','Currency','Amount','Status']];
+  invoices.forEach(inv => rows.push([
+    inv.invNumber||inv.id||'',
+    inv.customer||'',
+    inv.date ? new Date(inv.date).toLocaleDateString() : '',
+    inv.currency||'PKR',
+    parseFloat(inv.total||0).toFixed(2),
+    inv.status||'saved'
+  ]));
+  const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'fineinvoice-report-' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+  showToast('CSV exported ✅', 'success');
+}
+
+// Init — Reports is a Lifetime-only feature (matches templates.html and
+// receipt.html, which both hard-block non-paying plans). Free/Single stay
+// on this page to see the upgrade banner, but get no real invoice data.
+allInvoices = hasAccess ? getInvoices() : [];
+renderReports();
+</script>
+</body>
+</html>

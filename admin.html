@@ -2,13 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="logo.jpg">
 <meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin Panel — FineInvoice</title>
 <link rel="stylesheet" href="css/theme.css">
 <style>
 .admin-gate { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
-.admin-login { background: white; border-radius: var(--radius-lg); padding: 48px; width: 100%; max-width: 400px; box-shadow: var(--shadow-lg); text-align: center; }
+.admin-login { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 48px; width: 100%; max-width: 400px; box-shadow: var(--shadow-lg); text-align: center; }
 .admin-login .icon { font-size: 48px; margin-bottom: 16px; }
 .admin-login h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
 .admin-login p  { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
@@ -22,11 +24,14 @@
   <div class="admin-login">
     <div class="icon">🔐</div>
     <h2>Admin Panel</h2>
-    <p>This area is restricted. Enter admin password to continue.</p>
+    <p>This area is restricted. Sign in with your admin account to continue.</p>
     <div class="form-group">
-      <input class="form-input" id="adminPass" type="password" placeholder="Admin password" style="text-align:center">
+      <input class="form-input" id="adminEmail" type="email" placeholder="Admin email" style="text-align:center">
     </div>
-    <button class="btn btn-primary w-full" onclick="checkAdmin()" style="margin-top:8px">Access Admin →</button>
+    <div class="form-group">
+      <input class="form-input" id="adminPass" type="password" placeholder="Password" style="text-align:center">
+    </div>
+    <button class="btn btn-primary w-full" onclick="adminSignIn()" style="margin-top:8px">Access Admin →</button>
   </div>
 </div>
 
@@ -45,6 +50,9 @@
       <a href="dashboard.html"><span class="nav-icon">🏠</span>Dashboard</a>
       <a href="app.html"><span class="nav-icon">✏️</span>New Invoice</a>
       <a href="invoices.html"><span class="nav-icon">📋</span>Invoices</a>
+      <a href="templates.html"><span class="nav-icon">📄</span>Templates</a>
+      <a href="receipt.html"><span class="nav-icon">🧾</span>Receipts</a>
+      <a href="reports.html"><span class="nav-icon">📊</span>Reports</a>
       <a href="customers.html"><span class="nav-icon">👥</span>Customers</a>
       <a href="payment.html"><span class="nav-icon">💳</span>Billing</a>
     </nav>
@@ -106,17 +114,9 @@
           <div id="licenseInfo" style="font-size:14px"></div>
 
           <div style="margin-top:20px">
-            <div class="sub-section-head">📨 Pending Submission</div>
-            <div id="pendingSubmission" style="font-size:14px"></div>
-          </div>
-
-          <div style="margin-top:20px">
-            <div class="sub-section-head">🔑 Issue Unlock Code</div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Send this code to user via WhatsApp after payment verification.</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <div style="background:var(--violet-l);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-family:monospace;font-weight:700;color:var(--violet)">SINGLE2024</div>
-              <div style="background:var(--amber-l);border:1px solid #FFD9A0;border-radius:10px;padding:10px 16px;font-family:monospace;font-weight:700;color:#B76E00">LIFETIME2024</div>
-            </div>
+            <div class="sub-section-head">📨 Payment Submissions</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Verify the transaction yourself (check your EasyPaisa/JazzCash/PayPal), then click "Verify & Get Code" — a one-time code is generated. Copy it and send it to the customer's WhatsApp number manually.</div>
+            <div id="submissionsList" style="font-size:14px;display:flex;flex-direction:column;gap:10px"></div>
           </div>
         </div>
 
@@ -135,24 +135,53 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="js/utils.js"></script>
 <script>
-const ADMIN_PASS = 'admin123';
+// Real admin auth: sign in with your Supabase account, then the
+// admin-payments Edge Function checks your email against ADMIN_EMAILS
+// server-side before returning anything. There is no client-side password
+// that grants access on its own.
+async function adminSignIn(){
+  const email = document.getElementById('adminEmail').value.trim();
+  const pass  = document.getElementById('adminPass').value;
+  if(!email || !pass){ showToast('Enter email and password', 'error'); return; }
 
-function checkAdmin(){
-  const pass = document.getElementById('adminPass').value;
-  if(pass === ADMIN_PASS){
-    document.getElementById('adminGate').style.display  = 'none';
-    document.getElementById('adminPanel').style.display = 'flex';
-    loadAdminData();
-  } else {
-    showToast('Incorrect password', 'error');
+  const sb = getSupabase();
+  if(!sb){ showToast('Database unavailable', 'error'); return; }
+
+  const { data: authData, error: authErr } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(authErr){ showToast('Invalid email or password', 'error'); return; }
+
+  // Confirm this account is actually allow-listed as admin server-side.
+  const { data: subs, error: listErr } = await getAllSubmissions();
+  if(listErr){
+    showToast('This account is not authorized for admin access.', 'error');
+    await sb.auth.signOut();
+    return;
   }
+
+  const u = authData.user;
+  saveCurrentUser({
+    id: u.id,
+    email: u.email,
+    name: u.user_metadata?.name || u.email.split('@')[0],
+    plan: u.user_metadata?.plan || 'free',
+    singleCredits: u.user_metadata?.singleCredits || 0,
+    unlockedInvoiceIds: u.user_metadata?.unlockedInvoiceIds || [],
+    isAdmin: true
+  });
+
+  document.getElementById('adminGate').style.display  = 'none';
+  document.getElementById('adminPanel').style.display = 'flex';
+  loadAdminData(subs);
 }
 
-document.getElementById('adminPass').addEventListener('keydown', e => { if(e.key==='Enter') checkAdmin(); });
+['adminEmail','adminPass'].forEach(id =>
+  document.getElementById(id).addEventListener('keydown', e => { if(e.key==='Enter') adminSignIn(); })
+);
 
-function loadAdminData(){
+async function loadAdminData(preloadedSubs){
   const users     = getUsers();
   const customers = getCustomers();
   const invoices  = getInvoices();
@@ -163,41 +192,77 @@ function loadAdminData(){
   document.getElementById('statInvoices').textContent  = invoices.length;
   document.getElementById('statLicense').textContent   = (license.plan || 'FREE').toUpperCase();
 
-  // Users table
+  // Users table — name/email are attacker-controllable (anyone can sign up), so escape them.
   document.getElementById('usersTable').innerHTML = users.length
     ? users.map(u => `<tr>
-        <td><strong>${u.name||'—'}</strong></td>
-        <td style="font-size:13px;color:var(--muted)">${u.email||'—'}</td>
-        <td><span class="badge badge-${u.plan==='lifetime'?'lifetime':u.plan==='single'?'single':'free'}">${(u.plan||'free').toUpperCase()}</span></td>
+        <td><strong>${escapeHtml(u.name||'—')}</strong></td>
+        <td style="font-size:13px;color:var(--muted)">${escapeHtml(u.email||'—')}</td>
+        <td><span class="badge badge-${u.plan==='lifetime'?'lifetime':u.plan==='single'?'single':'free'}">${escapeHtml((u.plan||'free').toUpperCase())}</span></td>
       </tr>`).join('')
     : '<tr><td colspan="3" style="color:var(--muted);font-size:13px">No users registered</td></tr>';
 
   // License
   document.getElementById('licenseInfo').innerHTML = license.plan
     ? `<div style="display:flex;flex-direction:column;gap:8px">
-        <div><strong>Plan:</strong> ${license.plan.toUpperCase()}</div>
-        <div><strong>Code:</strong> <span class="mono">${license.code||license.txn||'—'}</span></div>
+        <div><strong>Plan:</strong> ${escapeHtml(license.plan.toUpperCase())}</div>
+        <div><strong>Code:</strong> <span class="mono">${escapeHtml(license.code||license.txn||'—')}</span></div>
         <div><strong>Activated:</strong> ${license.activatedAt ? new Date(license.activatedAt).toLocaleString() : '—'}</div>
       </div>`
     : '<p style="color:var(--muted)">No active license found.</p>';
 
-  // Pending submission
-  const sub = JSON.parse(localStorage.getItem('fi_payment_submission')||'null');
-  document.getElementById('pendingSubmission').innerHTML = sub
-    ? `<div style="background:var(--amber-l);border:1px solid #FFD9A0;border-radius:10px;padding:12px 16px;display:flex;flex-direction:column;gap:6px">
-        <div><strong>Plan:</strong> ${sub.plan.toUpperCase()}</div>
-        <div><strong>Method:</strong> ${sub.method}</div>
-        <div><strong>Transaction ID:</strong> <span class="mono">${sub.txn}</span></div>
-        <div><strong>WhatsApp:</strong> ${sub.whatsapp}</div>
-        <div><strong>Submitted:</strong> ${new Date(sub.submittedAt).toLocaleString()}</div>
-        <button class="btn btn-danger btn-sm" style="margin-top:6px;width:fit-content" onclick="clearSubmission()">Clear Submission</button>
-      </div>`
-    : '<p style="color:var(--muted);font-size:13px">No pending payment submissions.</p>';
+  // Payment submissions (via the admin-payments Edge Function — visible regardless of device)
+  const { data: subs, error: subsError } = preloadedSubs !== undefined
+    ? { data: preloadedSubs, error: null }
+    : await getAllSubmissions();
+  if(subsError){
+    document.getElementById('submissionsList').innerHTML =
+      `<p style="color:var(--coral);font-size:13px">⚠️ Could not load submissions: ${escapeHtml(subsError.message || JSON.stringify(subsError))}</p>`;
+    return;
+  }
+  const statusStyle = {
+    pending:  { bg:'var(--amber-l)',  border:'#FFD9A0', label:'⏳ PENDING' },
+    verified: { bg:'var(--mint-l)',   border:'#b6f5e0', label:'✅ VERIFIED — code sent' },
+    used:     { bg:'var(--border)',   border:'var(--border)', label:'☑️ USED' }
+  };
+  // sub.name / sub.email / sub.whatsapp / sub.txn come straight from the
+  // public payment form (no auth required to submit) — always escape them
+  // before rendering, otherwise a submission is a stored-XSS payload that
+  // fires in this admin session the moment it's viewed.
+  document.getElementById('submissionsList').innerHTML = subs.length
+    ? subs.map(sub => {
+        const st = statusStyle[sub.status] || statusStyle.pending;
+        return `<div style="background:${st.bg};border:1px solid ${st.border};border-radius:10px;padding:12px 16px;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${escapeHtml((sub.plan||'').toUpperCase())} — ${escapeHtml(sub.method)}</strong>
+            <span style="font-size:12px;font-weight:700">${st.label}</span>
+          </div>
+          <div><strong>Name/Email:</strong> ${escapeHtml(sub.name||'—')} (${escapeHtml(sub.email||'—')})</div>
+          <div><strong>Transaction ID:</strong> <span class="mono">${escapeHtml(sub.txn)}</span></div>
+          <div><strong>WhatsApp:</strong> ${escapeHtml(sub.whatsapp)}</div>
+          <div><strong>Submitted:</strong> ${new Date(sub.submitted_at).toLocaleString()}</div>
+          ${sub.status === 'pending'
+            ? `<button class="btn btn-primary btn-sm" style="margin-top:6px;width:fit-content" onclick="issueCode('${sub.id}')">🔑 Verify &amp; Get Code</button>`
+            : sub.unlock_code
+              ? `<div><strong>Code (send via WhatsApp):</strong> <span class="mono" style="font-weight:800">${escapeHtml(sub.unlock_code)}</span></div>`
+              : ''
+          }
+        </div>`;
+      }).join('')
+    : '<p style="color:var(--muted);font-size:13px">No payment submissions yet.</p>';
 }
 
-function clearSubmission(){
-  localStorage.removeItem('fi_payment_submission');
-  showToast('Submission cleared', 'info');
+async function issueCode(id){
+  const { data, error } = await verifySubmissionAndIssueCode(id);
+  if(error || !data){ showToast('Could not generate code — check your connection.', 'error'); return; }
+
+  showToast(`Code generated: ${data.unlock_code} — sending via WhatsApp…`, 'info', 4000);
+
+  const sendResult = await sendWhatsAppCode(data.whatsapp, data.plan, data.unlock_code);
+  if(sendResult.error){
+    showToast(`Code is ${data.unlock_code}, but WhatsApp send failed — please send it manually.`, 'error', 7000);
+  } else {
+    showToast(`✅ Code ${data.unlock_code} sent to ${data.whatsapp} via WhatsApp!`, 'success', 6000);
+  }
   loadAdminData();
 }
 

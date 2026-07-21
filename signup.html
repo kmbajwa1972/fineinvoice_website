@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" href="logo.jpg">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Create Free Account — FineInvoice</title>
-<meta name="description" content="Create your free FineInvoice account. Generate professional PDF invoices in seconds. First 3 PDFs completely free — no credit card needed. Built for small businesses & freelancers.">
+<meta name="description" content="Create your free FineInvoice account. Generate professional PDF invoices in seconds. First 3 PDFs completely free — no credit card needed. Built for freelancers & small businesses.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://fineinvoice.com/signup.html">
 <meta property="og:type" content="website">
@@ -110,7 +112,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#060412;min-height:10
 
   <div class="illus-content">
     <h2>Start Invoicing in<br>Under 2 Minutes</h2>
-    <p>Join freelancers &amp; businesses across Pakistan using FineInvoice.</p>
+    <p>Join freelancers &amp; small businesses using FineInvoice.</p>
     <div class="steps-wrap">
       <div class="steps-card">
         <div class="step"><div class="step-num">1</div><div class="step-txt">Create your free account — no credit card needed</div></div>
@@ -133,20 +135,22 @@ async function doSignup(){
 
   const sb = getSupabase();
   if(sb){
-    const {data,error} = await sb.auth.signUp({email,password,options:{data:{name}}});
+    // New accounts start with 3 free PDF download credits (one-time — not renewed).
+    // Lifetime-plan users bypass credits entirely (see hasInvoiceAccess in utils.js).
+    const {data,error} = await sb.auth.signUp({email,password,options:{data:{name, plan:'free', singleCredits:3}}});
     if(error){ showToast(error.message,'error'); return; }
-    const u = {id:data.user?.id,email,name,plan:'free'};
+    const u = {id:data.user?.id,email,name,plan:'free',singleCredits:3,unlockedInvoiceIds:[]};
     saveCurrentUser(u);
-    showToast('Account created! Welcome 🎉','success');
+    showToast('Account created! You have 3 free PDF downloads 🎉','success');
     setTimeout(()=>window.location.href='dashboard.html',900);
   } else {
     const users = JSON.parse(localStorage.getItem('fi_users')||'[]');
     if(users.find(u=>u.email===email)){ showToast('Email already registered','error'); return; }
-    const u = {id:Date.now().toString(),name,email,password,plan:'free',created:new Date().toISOString()};
+    const u = {id:Date.now().toString(),name,email,password,plan:'free',singleCredits:3,unlockedInvoiceIds:[],created:new Date().toISOString()};
     users.push(u);
     localStorage.setItem('fi_users',JSON.stringify(users));
     saveCurrentUser(u);
-    showToast('Account created! Welcome 🎉','success');
+    showToast('Account created! You have 3 free PDF downloads 🎉','success');
     setTimeout(()=>window.location.href='dashboard.html',900);
   }
 }

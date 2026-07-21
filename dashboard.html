@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="logo.jpg">
 <meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dashboard — FineInvoice</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -195,6 +197,9 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#070511;color:#fff;di
     <a href="dashboard.html" class="active"><span class="ni">🏠</span>Dashboard</a>
     <a href="app.html"><span class="ni">✏️</span>New Invoice</a>
     <a href="invoices.html"><span class="ni">📋</span>Invoices</a>
+    <a href="templates.html"><span class="ni">📄</span>Templates</a>
+    <a href="receipt.html"><span class="ni">🧾</span>Receipts</a>
+    <a href="reports.html"><span class="ni">📊</span>Reports</a>
     <a href="customers.html"><span class="ni">👥</span>Customers</a>
     <a href="payment.html"><span class="ni">💳</span>Billing</a>
   </nav>
@@ -261,6 +266,9 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#070511;color:#fff;di
           <div class="card-head"><span class="card-title">Quick Actions</span></div>
           <div class="quick-list">
             <a href="app.html" class="quick-btn"><span class="qi">✏️</span>Create Invoice</a>
+            <a href="templates.html" class="quick-btn"><span class="qi">📄</span>Invoice Templates</a>
+            <a href="receipt.html" class="quick-btn"><span class="qi">🧾</span>Create Receipt</a>
+            <a href="reports.html" class="quick-btn"><span class="qi">📊</span>View Reports</a>
             <a href="customers.html" class="quick-btn"><span class="qi">➕</span>Add Customer</a>
             <a href="invoices.html" class="quick-btn"><span class="qi">📋</span>View All Invoices</a>
             <a href="payment.html" class="quick-btn"><span class="qi">💳</span>Manage Billing</a>
@@ -287,20 +295,32 @@ if(user){
 
   document.getElementById('invoiceCount').textContent  = invoices.length;
   document.getElementById('customerCount').textContent = customers.length;
-  const dlCount = parseInt(localStorage.getItem('fi_downloads')||'0');
-  if(plan === 'FREE'){
-    document.getElementById('downloadCount').textContent = dlCount + '/3';
-    document.getElementById('downloadLbl').textContent   = 'Free PDFs Used';
+
+  // NOTE: `plan` must be computed before use below — this was previously
+  // referenced above its declaration (a `const` temporal-dead-zone bug that
+  // threw a ReferenceError and silently broke every stat/nav-highlight/
+  // activity-list update after it on every dashboard load).
+  const plan = (license.plan||user.plan||'free').toUpperCase();
+  document.getElementById('planVal').textContent  = plan;
+  document.getElementById('planName').textContent = plan;
+
+  // Show the actual remaining balance (user.singleCredits) for Free/Single
+  // plans — this is the same field hasInvoiceAccess/consumeInvoiceCredit in
+  // utils.js gate downloads with. The old version displayed a separate
+  // fi_downloads counter that increments on every download even when
+  // re-downloading an already-unlocked invoice (free, no new credit spent),
+  // so it could show "0 remaining" while the customer still had credits —
+  // risking an unnecessary upgrade purchase.
+  if(plan === 'FREE' || plan === 'SINGLE'){
+    document.getElementById('downloadCount').textContent = user.singleCredits || 0;
+    document.getElementById('downloadLbl').textContent   = 'PDF Credits Left';
   } else {
+    const dlCount = parseInt(localStorage.getItem('fi_downloads')||'0');
     document.getElementById('downloadCount').textContent = dlCount;
     document.getElementById('downloadLbl').textContent   = 'PDFs Downloaded';
   }
   const dlBtn = document.getElementById('desktopDownloadBtn');
   if(dlBtn) dlBtn.style.display = plan === 'LIFETIME' ? 'flex' : 'none';
-
-  const plan = (license.plan||user.plan||'free').toUpperCase();
-  document.getElementById('planVal').textContent  = plan;
-  document.getElementById('planName').textContent = plan;
 
   // Active nav
   document.querySelectorAll('.sb-nav a').forEach(a=>{

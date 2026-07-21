@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="logo.jpg">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Receipt Maker — FineInvoice</title>
+<link rel="stylesheet" href="css/theme.css">
+<style>
+.builder-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
+@media(max-width:1100px){ .builder-grid{grid-template-columns:1fr;} }
+.builder-form { display:flex; flex-direction:column; gap:20px; }
+.form-section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; }
+.form-section-head { padding:14px 20px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); background:var(--bg); display:flex; align-items:center; gap:8px; }
+.form-section-body { padding:20px; display:flex; flex-direction:column; gap:12px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+.items-table { width:100%; border-collapse:collapse; font-size:13px; }
+.items-table th { background:var(--bg); color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:9px 8px; text-align:left; border-bottom:1px solid var(--border); }
+.items-table td { padding:6px 4px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.items-table tr:last-child td { border-bottom:none; }
+.items-table input { width:100%; padding:8px 8px; background:var(--surface2); border:1.5px solid var(--border); border-radius:7px; font-family:inherit; font-size:12px; color:var(--text); outline:none; transition:all .2s; }
+.items-table input:focus { border-color:var(--mint); }
+.del-row-btn { background:none; border:none; cursor:pointer; color:var(--coral); font-size:15px; padding:3px 5px; border-radius:6px; transition:background .2s; }
+.del-row-btn:hover { background:var(--coral-l); }
+
+.totals-box { background:var(--bg); border-radius:12px; padding:16px 20px; display:flex; flex-direction:column; gap:8px; }
+.total-row { display:flex; justify-content:space-between; font-size:14px; }
+.total-row .label { color:var(--muted); }
+.total-row .value { font-weight:600; }
+.total-final { border-top:2px solid var(--border); padding-top:10px; margin-top:4px; }
+.total-final .label { font-weight:700; font-size:15px; }
+.total-final .value { font-weight:800; font-size:18px; color:var(--mint); }
+
+.preview-sticky { position:sticky; top:80px; }
+.preview-wrap { background:white; border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-md); }
+.preview-toolbar { background:var(--bg); border-bottom:1px solid var(--border); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
+.preview-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
+.preview-body { padding:28px; min-height:460px; }
+
+/* Receipt preview */
+#receiptDoc, #receiptDoc * { color:#1A1A2E; }
+#receiptDoc { font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; line-height:1.6; }
+.rcpt-header { text-align:center; padding-bottom:18px; border-bottom:2px dashed #ddd; margin-bottom:18px; }
+.rcpt-logo { max-height:50px; max-width:120px; object-fit:contain; margin:0 auto 10px; display:block; }
+.rcpt-company { font-size:20px; font-weight:900; }
+.rcpt-email { font-size:11px; color:#6B6B8A; }
+.rcpt-title { display:inline-block; margin-top:10px; padding:4px 16px; border-radius:99px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+.rcpt-meta { display:flex; justify-content:space-between; font-size:12px; color:#6B6B8A; margin-bottom:18px; }
+.rcpt-meta strong { color:#1A1A2E; }
+.rcpt-items { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px; }
+.rcpt-items th { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:7px 10px; border-bottom:1px solid #eee; color:#6B6B8A; }
+.rcpt-items td { padding:8px 10px; border-bottom:1px solid #f5f5ff; }
+.rcpt-items th:last-child, .rcpt-items td:last-child { text-align:right; }
+.rcpt-totals { text-align:right; font-size:13px; margin-bottom:16px; }
+.rcpt-totals div { margin-bottom:4px; color:#6B6B8A; }
+.rcpt-totals .rcpt-grand { font-size:17px; font-weight:900; border-top:2px solid; padding-top:8px; margin-top:6px; }
+.rcpt-footer { text-align:center; font-size:11px; color:#A09CB8; padding-top:14px; border-top:1px dashed #ddd; }
+.rcpt-paid { display:inline-block; border:3px solid; border-radius:8px; padding:6px 20px; font-size:18px; font-weight:900; text-transform:uppercase; letter-spacing:.1em; opacity:.85; transform:rotate(-12deg); margin:10px auto; }
+
+@media print {
+  body.print-mode .sidebar, body.print-mode .topbar, body.print-mode .builder-form, body.print-mode .preview-toolbar, body.print-mode #actionBtns { display:none !important; }
+  body.print-mode .main-content { margin-left:0 !important; }
+  body.print-mode .page-body { padding:0 !important; }
+  body.print-mode .preview-sticky { position:static !important; }
+  body.print-mode .builder-grid { grid-template-columns:1fr !important; }
+  body.print-mode #receiptDoc { box-shadow:none !important; border:none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <img src="logo.jpg" alt="FineInvoice">
+      <span>FineInvoice</span>
+    </div>
+    <nav class="sb-nav">
+      <a href="dashboard.html"><span class="ni">🏠</span>Dashboard</a>
+      <a href="app.html"><span class="ni">✏️</span>New Invoice</a>
+      <a href="invoices.html"><span class="ni">📋</span>Invoices</a>
+      <a href="templates.html"><span class="ni">📄</span>Templates</a>
+      <a href="receipt.html" class="active"><span class="ni">🧾</span>Receipts</a>
+      <a href="reports.html"><span class="ni">📊</span>Reports</a>
+      <a href="customers.html"><span class="ni">👥</span>Customers</a>
+      <a href="payment.html"><span class="ni">💳</span>Billing</a>
+    </nav>
+    <div class="sb-footer">
+      <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">🧾 Receipt Maker</span>
+      <div class="topbar-right" id="userChip"></div>
+    </div>
+
+    <div class="page-body">
+      <div class="builder-grid">
+
+        <!-- Form -->
+        <div class="builder-form">
+
+          <div class="form-section">
+            <div class="form-section-head">🏢 Business Details</div>
+            <div class="form-section-body">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Company / Seller Name</label>
+                <input class="form-input" id="rCompany" placeholder="e.g. Ahmed Store" oninput="liveReceipt()">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Email / Phone</label>
+                <input class="form-input" id="rEmail" placeholder="you@company.com or 03XX-XXXXXXX" oninput="liveReceipt()">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Logo (optional)</label>
+                <input class="form-input" type="file" accept="image/*" onchange="loadLogo(this)">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-head">👤 Customer Details</div>
+            <div class="form-section-body">
+              <div class="form-row">
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Customer Name</label>
+                  <input class="form-input" id="rCustomer" placeholder="Buyer name" oninput="liveReceipt()">
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Phone (optional)</label>
+                  <input class="form-input" id="rPhone" placeholder="03XX-XXXXXXX" oninput="liveReceipt()">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-head">🗒️ Receipt Details</div>
+            <div class="form-section-body">
+              <div class="form-row">
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Receipt #</label>
+                  <input class="form-input" id="rNumber" placeholder="REC-001" oninput="liveReceipt()">
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Date</label>
+                  <input class="form-input" id="rDate" type="date" oninput="liveReceipt()">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Currency</label>
+                  <select class="form-select" id="rCurrency" onchange="liveReceipt()">
+                    <option value="PKR">🇵🇰 PKR</option>
+                    <option value="USD">🇺🇸 USD</option>
+                    <option value="EUR">🇪🇺 EUR</option>
+                    <option value="AED">🇦🇪 AED</option>
+                    <option value="GBP">🇬🇧 GBP</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Payment Method</label>
+                  <select class="form-select" id="rPayMethod" onchange="liveReceipt()">
+                    <option value="Cash">Cash</option>
+                    <option value="EasyPaisa">EasyPaisa</option>
+                    <option value="JazzCash">JazzCash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="PayPal">PayPal</option>
+                    <option value="Card">Card</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Color Theme</label>
+                  <select class="form-select" id="rColor" onchange="liveReceipt()">
+                    <option value="#00C48C">Mint Green</option>
+                    <option value="#6C3FF5">Violet</option>
+                    <option value="#FF5C5C">Coral</option>
+                    <option value="#3AB3FF">Sky Blue</option>
+                    <option value="#FFB547">Amber</option>
+                    <option value="#1A1A2E">Dark</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Show PAID stamp?</label>
+                  <select class="form-select" id="rShowPaid" onchange="liveReceipt()">
+                    <option value="yes">Yes — show PAID</option>
+                    <option value="no">No stamp</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-head">📦 Items Sold</div>
+            <div class="form-section-body">
+              <div class="table-wrap" style="overflow-x:auto">
+                <table class="items-table">
+                  <thead>
+                    <tr>
+                      <th style="width:50%">Item / Service</th>
+                      <th style="width:12%">Qty</th>
+                      <th style="width:20%">Price</th>
+                      <th style="width:14%">Total</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="rItemsBody"></tbody>
+                </table>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="addRItem()" style="margin-top:4px">+ Add Item</button>
+              <div class="totals-box" style="margin-top:8px">
+                <div class="form-row" style="margin-bottom:4px">
+                  <div>
+                    <label class="form-label">Tax %</label>
+                    <input class="form-input" id="rTax" type="number" value="0" min="0" max="100" oninput="liveReceipt()">
+                  </div>
+                  <div>
+                    <label class="form-label">Discount %</label>
+                    <input class="form-input" id="rDiscount" type="number" value="0" min="0" max="100" oninput="liveReceipt()">
+                  </div>
+                </div>
+                <div class="total-row"><span class="label">Subtotal</span><span class="value" id="rSubtotal">0.00</span></div>
+                <div class="total-row"><span class="label">Tax</span><span class="value" id="rTaxAmt">0.00</span></div>
+                <div class="total-row"><span class="label">Discount</span><span class="value" id="rDiscAmt">-0.00</span></div>
+                <div class="total-row total-final"><span class="label">Amount Paid</span><span class="value" id="rTotal">0.00</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-head">📝 Thank You Note</div>
+            <div class="form-section-body">
+              <textarea class="form-textarea" id="rNotes" placeholder="Thank you for your purchase! Return policy, warranty info..." oninput="liveReceipt()"></textarea>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap" id="actionBtns">
+            <button class="btn btn-primary btn-lg" onclick="saveReceipt()" style="flex:1">💾 Save</button>
+            <button class="btn btn-outline btn-lg" onclick="printReceipt()" style="flex:1">🖨️ Print</button>
+            <button class="btn btn-outline btn-lg" onclick="downloadReceiptPDF()" style="flex:1">📥 PDF</button>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-sticky">
+          <div class="preview-wrap">
+            <div class="preview-toolbar">
+              <span class="preview-label">Receipt Preview</span>
+              <span class="text-sm text-muted">Updates as you type</span>
+            </div>
+            <div class="preview-body" id="receiptDoc">
+              <div style="text-align:center;color:var(--muted);padding:60px 20px;">
+                <div style="font-size:48px;margin-bottom:16px;">🧾</div>
+                <div style="font-weight:700;font-size:16px;margin-bottom:8px;">Receipt preview here</div>
+                <div style="font-size:14px;">Fill the form to see live preview</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/utils.js"></script>
+<script>
+// Plan gate — Single+ required
+const _user = requireAuth();
+renderUserChip('userChip');
+if(_user && !_user.isAdmin && _user.plan !== 'single' && _user.plan !== 'lifetime'){
+  showToast('Receipt Maker requires Single plan or higher. Redirecting to Billing…', 'error', 4000);
+  setTimeout(() => window.location.href = 'payment.html', 2000);
+}
+
+let rLogoData = '';
+
+document.getElementById('rNumber').value = 'REC-' + String(Date.now()).slice(-4);
+document.getElementById('rDate').value   = new Date().toISOString().split('T')[0];
+
+const rUserData = getCurrentUser();
+if(rUserData) document.getElementById('rCompany').value = rUserData.name || '';
+
+addRItem(); addRItem();
+liveReceipt();
+
+function loadLogo(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { rLogoData = e.target.result; liveReceipt(); };
+  reader.readAsDataURL(file);
+}
+
+function addRItem(){
+  const tbody = document.getElementById('rItemsBody');
+  const idx   = tbody.children.length;
+  const tr    = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input placeholder="Item or service" oninput="liveReceipt()"></td>
+    <td><input type="number" value="1" min="0" oninput="liveReceipt()"></td>
+    <td><input type="number" value="0" min="0" oninput="liveReceipt()"></td>
+    <td id="rAmt_${idx}" style="font-weight:600;color:var(--mint);padding-left:8px">0.00</td>
+    <td><button class="del-row-btn" onclick="this.closest('tr').remove();liveReceipt()">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function calcReceiptTotals(){
+  let subtotal = 0;
+  document.querySelectorAll('#rItemsBody tr').forEach((tr, i) => {
+    const ins  = tr.querySelectorAll('input');
+    const qty  = parseFloat(ins[1].value)||0;
+    const rate = parseFloat(ins[2].value)||0;
+    const amt  = qty * rate;
+    subtotal  += amt;
+    const cell = tr.querySelector('[id^="rAmt_"]');
+    if(cell) cell.textContent = amt.toFixed(2);
+  });
+  const taxPct  = parseFloat(document.getElementById('rTax').value)||0;
+  const discPct = parseFloat(document.getElementById('rDiscount').value)||0;
+  const taxAmt  = subtotal * taxPct  / 100;
+  const discAmt = subtotal * discPct / 100;
+  const total   = subtotal + taxAmt - discAmt;
+  return { subtotal, taxAmt, discAmt, total };
+}
+
+function liveReceipt(){
+  const { subtotal, taxAmt, discAmt, total } = calcReceiptTotals();
+  const currency = document.getElementById('rCurrency').value;
+  const sym = { PKR:'₨', USD:'$', EUR:'€', AED:'AED ', GBP:'£' }[currency] || currency + ' ';
+  const color = document.getElementById('rColor').value;
+
+  document.getElementById('rSubtotal').textContent = sym + subtotal.toFixed(2);
+  document.getElementById('rTaxAmt').textContent   = sym + taxAmt.toFixed(2);
+  document.getElementById('rDiscAmt').textContent  = '−' + sym + discAmt.toFixed(2);
+  document.getElementById('rTotal').textContent    = sym + total.toFixed(2);
+
+  const company   = document.getElementById('rCompany').value  || 'Your Business';
+  const email     = document.getElementById('rEmail').value    || '';
+  const customer  = document.getElementById('rCustomer').value || 'Customer';
+  const phone     = document.getElementById('rPhone').value    || '';
+  const recNum    = document.getElementById('rNumber').value   || 'REC-001';
+  const recDate   = document.getElementById('rDate').value     || '';
+  const payMethod = document.getElementById('rPayMethod').value;
+  const showPaid  = document.getElementById('rShowPaid').value === 'yes';
+  const notes     = document.getElementById('rNotes').value    || '';
+
+  const rows = [...document.querySelectorAll('#rItemsBody tr')].map(tr => {
+    const ins  = tr.querySelectorAll('input');
+    const desc = ins[0].value || '—';
+    const qty  = parseFloat(ins[1].value)||0;
+    const rate = parseFloat(ins[2].value)||0;
+    const amt  = qty * rate;
+    return `<tr>
+      <td>${desc}</td>
+      <td style="text-align:center">${qty}</td>
+      <td style="text-align:right">${sym}${rate.toFixed(2)}</td>
+      <td style="text-align:right;font-weight:600">${sym}${amt.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const logoHtml = rLogoData ? `<img class="rcpt-logo" src="${rLogoData}">` : '';
+
+  document.getElementById('receiptDoc').innerHTML = `
+    <div class="rcpt-header">
+      ${logoHtml}
+      <div class="rcpt-company" style="color:${color}">${company}</div>
+      ${email ? `<div class="rcpt-email">${email}</div>` : ''}
+      <div><span class="rcpt-title" style="background:${color}22;color:${color}">Payment Receipt</span></div>
+    </div>
+    <div class="rcpt-meta">
+      <div>
+        <div><strong>To:</strong> ${customer}${phone ? ' · ' + phone : ''}</div>
+        <div><strong>Paid via:</strong> ${payMethod}</div>
+      </div>
+      <div style="text-align:right">
+        <div><strong>Receipt #</strong> ${recNum}</div>
+        ${recDate ? `<div><strong>Date:</strong> ${recDate}</div>` : ''}
+      </div>
+    </div>
+    <table class="rcpt-items">
+      <thead><tr style="color:${color}">
+        <th style="width:44%">Item</th>
+        <th style="text-align:center;width:10%">Qty</th>
+        <th style="text-align:right;width:22%">Price</th>
+        <th style="text-align:right;width:22%">Total</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="rcpt-totals">
+      <div>Subtotal: <strong>${sym}${subtotal.toFixed(2)}</strong></div>
+      ${taxAmt  ? `<div>Tax: <strong>${sym}${taxAmt.toFixed(2)}</strong></div>` : ''}
+      ${discAmt ? `<div>Discount: <strong>−${sym}${discAmt.toFixed(2)}</strong></div>` : ''}
+      <div class="rcpt-grand" style="color:${color};border-color:${color}">
+        Amount Paid: ${sym}${total.toFixed(2)}
+      </div>
+    </div>
+    ${showPaid ? `<div style="text-align:center"><div class="rcpt-paid" style="color:${color};border-color:${color}">✓ PAID</div></div>` : ''}
+    ${notes ? `<div style="background:#f9f7ff;border-left:3px solid ${color};padding:10px 14px;border-radius:8px;font-size:11px;color:#6B6B8A;margin-bottom:12px">${notes}</div>` : ''}
+    <div class="rcpt-footer">Generated by FineInvoice · fineinvoice.com</div>
+  `;
+}
+
+function saveReceipt(){
+  const company = document.getElementById('rCompany').value;
+  if(!company){ showToast('Enter business name', 'error'); return; }
+  const { total } = calcReceiptTotals();
+  const receipts  = JSON.parse(localStorage.getItem('fi_receipts')||'[]');
+  receipts.push({
+    id: 'REC-' + Date.now(),
+    company, customer: document.getElementById('rCustomer').value,
+    total, currency: document.getElementById('rCurrency').value,
+    number: document.getElementById('rNumber').value,
+    date: document.getElementById('rDate').value,
+    savedAt: new Date().toISOString()
+  });
+  localStorage.setItem('fi_receipts', JSON.stringify(receipts));
+  showToast('Receipt saved ✅', 'success');
+}
+
+function printReceipt(){
+  document.body.classList.add('print-mode');
+  window.print();
+  setTimeout(() => document.body.classList.remove('print-mode'), 500);
+}
+
+async function downloadReceiptPDF(){
+  showToast('Generating PDF…', 'info');
+  const el = document.getElementById('receiptDoc');
+  try {
+    const canvas = await html2canvas(el, { scale:2, useCORS:true, backgroundColor:'#ffffff' });
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a5' });
+    const imgData = canvas.toDataURL('image/png');
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = (canvas.height * pageW) / canvas.width;
+    doc.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+    const num = document.getElementById('rNumber').value || 'receipt';
+    doc.save(num + '.pdf');
+    showToast('Receipt PDF downloaded! 🎉', 'success');
+  } catch(e){ showToast('PDF failed. Try again.', 'error'); }
+}
+</script>
+</body>
+</html>

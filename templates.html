@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="logo.jpg">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invoice Templates — FineInvoice</title>
+<link rel="stylesheet" href="css/theme.css">
+<style>
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 8px;
+}
+.template-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all .25s;
+  cursor: pointer;
+  position: relative;
+}
+.template-card:hover { border-color: var(--violet); transform: translateY(-3px); box-shadow: 0 12px 36px rgba(124,58,237,.2); }
+.template-preview {
+  background: #fff;
+  padding: 20px;
+  min-height: 220px;
+  position: relative;
+  overflow: hidden;
+}
+.template-badge {
+  position: absolute; top: 12px; right: 12px;
+  background: rgba(124,58,237,.15); border: 1px solid rgba(124,58,237,.3);
+  color: #a78bfa; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; padding: 3px 9px; border-radius: 99px;
+}
+.template-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.template-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.template-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.btn-use {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg,#7c3aed,#ec4899);
+  color: #fff; font-size: 12px; font-weight: 700;
+  padding: 7px 16px; border-radius: 9px; text-decoration: none;
+  border: none; cursor: pointer; font-family: inherit;
+  transition: all .2s; white-space: nowrap;
+}
+.btn-use:hover { opacity: .9; transform: translateY(-1px); }
+
+/* Plan gate overlay */
+.plan-lock {
+  position: absolute; inset: 0;
+  background: rgba(7,5,17,.75);
+  backdrop-filter: blur(3px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; opacity: 0; transition: opacity .2s;
+}
+.template-card:hover .plan-lock { opacity: 1; }
+.lock-icon { font-size: 32px; }
+.lock-msg { font-size: 13px; font-weight: 700; color: #fff; text-align: center; }
+.btn-unlock {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+  color: #fff; font-size: 12px; font-weight: 700;
+  padding: 7px 16px; border-radius: 9px; cursor: pointer; font-family: inherit;
+  transition: all .2s;
+}
+.btn-unlock:hover { background: rgba(255,255,255,.25); }
+
+/* Mini invoice previews */
+.mini-inv { font-family: sans-serif; font-size: 9px; color: #1A1A2E; }
+.mini-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; padding-bottom:8px; border-bottom: 2px solid; }
+.mini-title { font-size:13px; font-weight:900; }
+.mini-badge { font-size:14px; font-weight:900; opacity:.12; text-transform:uppercase; }
+.mini-table { width:100%; border-collapse:collapse; margin:8px 0; }
+.mini-table th { font-size:7px; font-weight:700; text-transform:uppercase; padding:4px 6px; border-bottom:1px solid; opacity:.6; }
+.mini-table td { font-size:8px; padding:4px 6px; border-bottom:1px solid #f0eeff; }
+.mini-total { text-align:right; font-size:10px; font-weight:800; margin-top:6px; }
+.mini-tag { display:inline-block; padding:2px 7px; border-radius:4px; font-size:8px; font-weight:700; text-transform:uppercase; margin-bottom:8px; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <img src="logo.jpg" alt="FineInvoice">
+      <span>FineInvoice</span>
+    </div>
+    <nav class="sb-nav">
+      <a href="dashboard.html"><span class="ni">🏠</span>Dashboard</a>
+      <a href="app.html"><span class="ni">✏️</span>New Invoice</a>
+      <a href="invoices.html"><span class="ni">📋</span>Invoices</a>
+      <a href="templates.html" class="active"><span class="ni">📄</span>Templates</a>
+      <a href="receipt.html"><span class="ni">🧾</span>Receipts</a>
+      <a href="reports.html"><span class="ni">📊</span>Reports</a>
+      <a href="customers.html"><span class="ni">👥</span>Customers</a>
+      <a href="payment.html"><span class="ni">💳</span>Billing</a>
+    </nav>
+    <div class="sb-footer">
+      <a href="#" onclick="logout()"><span>🚪</span>Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">📄 Invoice Templates</span>
+      <div class="topbar-right" id="userChip"></div>
+    </div>
+
+    <div class="page-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+        <div>
+          <h2 style="font-size:20px;font-weight:800;margin-bottom:4px">Choose a Template</h2>
+          <p style="font-size:14px;color:var(--muted)">Select a template to pre-fill the invoice builder. <span style="color:var(--violet);font-weight:600">Single plan or higher required.</span></p>
+        </div>
+      </div>
+
+      <div class="templates-grid" id="templatesGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/utils.js"></script>
+<script>
+requireAuth();
+renderUserChip('userChip');
+
+const user = getCurrentUser();
+const hasAccess = user && (user.plan === 'single' || user.plan === 'lifetime' || user.isAdmin);
+
+const TEMPLATES = [
+  {
+    id: 'freelance-general',
+    name: 'Freelance General',
+    desc: 'Clean all-purpose template for any freelance service',
+    color: '#6C3FF5',
+    tag: 'Popular',
+    tagColor: '#6C3FF5',
+    items: [
+      { desc: 'Project Discovery & Planning', qty: 1, unit: 'project', rate: 15000 },
+      { desc: 'Design / Development Work',    qty: 1, unit: 'project', rate: 45000 },
+      { desc: 'Revisions & Handover',         qty: 1, unit: 'project', rate: 10000 },
+    ],
+    notes: 'Payment due within 14 days. Bank transfer or EasyPaisa accepted.'
+  },
+  {
+    id: 'web-design',
+    name: 'Web Design Project',
+    desc: 'Structured template for website design & development',
+    color: '#3AB3FF',
+    tag: 'Tech',
+    tagColor: '#3AB3FF',
+    items: [
+      { desc: 'UI/UX Design (Figma)',        qty: 1,  unit: 'project', rate: 20000 },
+      { desc: 'Frontend Development',        qty: 40, unit: 'hrs',     rate: 1500  },
+      { desc: 'Backend / API Integration',   qty: 20, unit: 'hrs',     rate: 2000  },
+      { desc: 'Testing & Deployment',        qty: 1,  unit: 'project', rate: 5000  },
+    ],
+    notes: '50% advance required before work begins. Remaining 50% on delivery.'
+  },
+  {
+    id: 'content-writing',
+    name: 'Content & Copywriting',
+    desc: 'For writers, bloggers, and content creators',
+    color: '#00C48C',
+    tag: 'Writing',
+    tagColor: '#00C48C',
+    items: [
+      { desc: 'Blog Articles (1000–1500 words)', qty: 4, unit: 'articles', rate: 3000 },
+      { desc: 'Social Media Captions',           qty: 20, unit: 'posts',   rate: 500  },
+      { desc: 'Email Newsletter Copy',           qty: 2,  unit: 'emails',  rate: 2000 },
+    ],
+    notes: 'Full payment required upfront for new clients.'
+  },
+  {
+    id: 'digital-marketing',
+    name: 'Digital Marketing',
+    desc: 'SEO, social media, and paid ads services',
+    color: '#FFB547',
+    tag: 'Marketing',
+    tagColor: '#FFB547',
+    items: [
+      { desc: 'SEO Audit & Strategy',     qty: 1, unit: 'project', rate: 12000 },
+      { desc: 'On-Page SEO Optimization', qty: 10, unit: 'pages',  rate: 1000  },
+      { desc: 'Social Media Management',  qty: 1,  unit: 'month',  rate: 18000 },
+      { desc: 'Google Ads Management',    qty: 1,  unit: 'month',  rate: 8000  },
+    ],
+    notes: 'Monthly retainer invoiced at the start of each month.'
+  },
+  {
+    id: 'consulting',
+    name: 'Consulting / Advisory',
+    desc: 'Hourly or project-based consulting invoice',
+    color: '#FF5C5C',
+    tag: 'Business',
+    tagColor: '#FF5C5C',
+    items: [
+      { desc: 'Initial Consultation',    qty: 2,  unit: 'hrs', rate: 5000 },
+      { desc: 'Strategy Development',   qty: 8,  unit: 'hrs', rate: 4000 },
+      { desc: 'Implementation Support', qty: 10, unit: 'hrs', rate: 3500 },
+    ],
+    notes: 'Billed at agreed hourly rate. Detailed timesheet available on request.'
+  },
+  {
+    id: 'video-production',
+    name: 'Video Production',
+    desc: 'For videographers, editors, and motion designers',
+    color: '#a855f7',
+    tag: 'Creative',
+    tagColor: '#a855f7',
+    items: [
+      { desc: 'Pre-Production & Script',  qty: 1, unit: 'project', rate: 8000  },
+      { desc: 'Filming (Full Day)',        qty: 2, unit: 'days',    rate: 15000 },
+      { desc: 'Video Editing',            qty: 1, unit: 'project', rate: 20000 },
+      { desc: 'Motion Graphics / Titles', qty: 1, unit: 'project', rate: 7000  },
+    ],
+    notes: 'Raw footage + edited files delivered via Google Drive link.'
+  }
+];
+
+function miniPreview(t){
+  const sym = '₨';
+  const subtotal = t.items.reduce((s, i) => s + (i.qty * i.rate), 0);
+  const rows = t.items.map(i => `
+    <tr>
+      <td>${i.desc}</td>
+      <td style="text-align:right">${sym}${(i.qty*i.rate).toLocaleString()}</td>
+    </tr>`).join('');
+
+  return `
+    <div class="mini-inv">
+      <div class="mini-header" style="border-color:${t.color}">
+        <div>
+          <div class="mini-title" style="color:${t.color}">Your Company</div>
+          <div style="color:#6B6B8A;font-size:8px">you@company.com</div>
+        </div>
+        <div class="mini-badge" style="color:${t.color}">Invoice</div>
+      </div>
+      <div style="color:#6B6B8A;font-size:8px;margin-bottom:6px">
+        <strong style="color:#1A1A2E">Bill To:</strong> Client Name &nbsp;|&nbsp;
+        <strong style="color:#1A1A2E">INV-001</strong>
+      </div>
+      <table class="mini-table">
+        <thead><tr style="color:${t.color}">
+          <th>Description</th><th style="text-align:right">Amount</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="mini-total" style="color:${t.color}">
+        Total: ${sym}${subtotal.toLocaleString()}
+      </div>
+    </div>`;
+}
+
+function useTemplate(t){
+  if(!hasAccess){
+    showToast('Single plan or higher required for templates. Upgrade in Billing.', 'error', 5000);
+    window.location.href = 'payment.html';
+    return;
+  }
+  // Store template in sessionStorage and open app.html
+  sessionStorage.setItem('fi_template', JSON.stringify(t));
+  window.location.href = 'app.html?template=1';
+}
+
+const grid = document.getElementById('templatesGrid');
+grid.innerHTML = TEMPLATES.map(t => `
+  <div class="template-card" onclick="useTemplate(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+    <div class="template-preview">
+      ${miniPreview(t)}
+      ${!hasAccess ? `
+        <div class="plan-lock">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-msg">Single plan required</div>
+          <button class="btn-unlock" onclick="event.stopPropagation();window.location.href='payment.html'">Upgrade →</button>
+        </div>` : ''}
+    </div>
+    <div class="template-footer">
+      <div>
+        <span class="mini-tag" style="background:${t.color}22;color:${t.color}">${t.tag}</span>
+        <div class="template-name">${t.name}</div>
+        <div class="template-desc">${t.desc}</div>
+      </div>
+      <button class="btn-use" onclick="event.stopPropagation();useTemplate(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+        Use →
+      </button>
+    </div>
+  </div>`).join('');
+</script>
+</body>
+</html>
