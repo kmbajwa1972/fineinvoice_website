@@ -13,15 +13,6 @@ function getSupabase() {
   return null;
 }
 
-// ── HTML escaping ──
-// Anything that came from a form (customer name/email, payment txn id, etc.)
-// must go through this before being inserted via innerHTML.
-function escapeHtml(str){
-  return String(str ?? '').replace(/[&<>"']/g, ch => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[ch]));
-}
-
 // ── LocalStorage fallback helpers (used as cache/session) ──
 function getCustomers(){ return JSON.parse(localStorage.getItem('fi_customers')|| '[]'); }
 function getInvoices () { return JSON.parse(localStorage.getItem('fi_invoices') || '[]'); }
@@ -115,65 +106,51 @@ function renderUserChip(containerId){
 }
 
 // ── Payment submissions (Supabase-backed, so Khalid can see them from any device) ──
-// Direct table SELECT/UPDATE from the client is blocked by RLS (see
-// supabase/migrations/0001_lock_down_payment_submissions.sql) — the anon key
-// can only INSERT here. Redemption goes through narrow SECURITY DEFINER
-// RPCs; admin listing/verification goes through the admin-payments Edge
-// Function, which checks the caller's email against ADMIN_EMAILS server-side.
 async function submitPaymentSubmission(sub){
   const sb = getSupabase();
   if(!sb) return { error:{ message:'Database unavailable' } };
-  // No .select() here — RLS gives anon INSERT-only access on this table (by
-  // design, so nobody can read other customers' submissions), and the
-  // caller doesn't need the row back, so asking for one is redundant and
-  // would fail anyway since anon has no SELECT policy to read it back with.
-  const { error } = await sb.from('payment_submissions').insert([sub]);
-  return { error };
+  const { data, error } = await sb.from('payment_submissions').insert([sub]).select().single();
+  return { data, error };
 }
 
-async function checkUnlockCode(code){
+async function checkUnlockCode(code, whatsapp){
   const sb = getSupabase();
   if(!sb) return { error:{ message:'Database unavailable' } };
-  const { data, error } = await sb.rpc('redeem_unlock_code', { p_code: code });
-  if(error) return { error };
-  const row = Array.isArray(data) ? data[0] : data;
-  return { data: row || null };
+  const { data, error } = await sb.from('payment_submissions')
+    .select('*')
+    .eq('unlock_code', code)
+    .eq('status', 'verified')
+    .maybeSingle();
+  return { data, error };
 }
 
-async function markCodeUsed(id, code){
+async function markCodeUsed(id){
   const sb = getSupabase();
   if(!sb) return;
-  await sb.rpc('mark_unlock_code_used', { p_id: id, p_code: code });
-}
-
-async function callAdminPayments(action, extra = {}){
-  const sb = getSupabase();
-  if(!sb) return { error:{ message:'Database unavailable' } };
-  const { data: sessionData } = await sb.auth.getSession();
-  const token = sessionData?.session?.access_token;
-  if(!token) return { error:{ message:'Not signed in' } };
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-payments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ action, ...extra })
-    });
-    const body = await res.json();
-    if(!res.ok) return { error: body.error ? { message: body.error } : { message: 'Request failed' } };
-    return body;
-  } catch(err){
-    return { error: { message: err.message || 'Network error' } };
-  }
+  await sb.from('payment_submissions').update({ status:'used', used_at:new Date().toISOString() }).eq('id', id);
 }
 
 async function getAllSubmissions(){
-  const { data, error } = await callAdminPayments('list');
+  const sb = getSupabase();
+  if(!sb) { console.error('Supabase client not available'); return { data: [], error: 'Supabase client not available (check network/CDN load)' }; }
+  const { data, error } = await sb.from('payment_submissions').select('*').order('submitted_at', { ascending:false });
   if(error) console.error('getAllSubmissions error:', error);
   return { data: data || [], error };
 }
 
+function generateUnlockCode(){
+  const part = () => Math.random().toString(36).slice(2,6).toUpperCase();
+  return `${part()}-${part()}`;
+}
+
 async function verifySubmissionAndIssueCode(id){
-  return callAdminPayments('verify', { id });
+  const sb = getSupabase();
+  if(!sb) return { error:{ message:'Database unavailable' } };
+  const code = generateUnlockCode();
+  const { data, error } = await sb.from('payment_submissions')
+    .update({ status:'verified', unlock_code: code, verified_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  return { data, error };
 }
 
 // ── Automatic WhatsApp sending via Green-API ──
@@ -182,9 +159,19 @@ const GREEN_API_TOKEN_INSTANCE = 'd21bd555c5b14b778f3e5debccc0f18adf1ff283aba24f
 const GREEN_API_HOST           = 'https://7107.api.greenapi.com';
 
 function normalizeWhatsappNumber(raw){
-  // Strip everything except digits, then drop a leading 0 if the country code is missing
+  // Strip everything except digits
   let digits = String(raw).replace(/\D/g, '');
+
+  // Remove leading 00 (international dialing prefix e.g. 00923001234567)
   if(digits.startsWith('00')) digits = digits.slice(2);
+
+  // Pakistani local format: starts with 0, 11 digits (03XX-XXXXXXX) → replace leading 0 with 92
+  if(digits.startsWith('0') && digits.length === 11) digits = '92' + digits.slice(1);
+
+  // Any other local format starting with 0 (10-12 digits) — strip the leading 0
+  // Green-API always needs country code, no leading 0
+  if(digits.startsWith('0')) digits = digits.slice(1);
+
   return digits;
 }
 
@@ -197,6 +184,7 @@ async function sendWhatsAppCode(whatsapp, plan, code){
     `Your unlock code: ${code}\n\n` +
     `Enter this code on the Billing page under "Have a code?" to activate your plan.`;
 
+  console.log('[WhatsApp] Sending to chatId:', chatId);
   try{
     const res = await fetch(url, {
       method: 'POST',
@@ -204,9 +192,14 @@ async function sendWhatsAppCode(whatsapp, plan, code){
       body: JSON.stringify({ chatId, message })
     });
     const data = await res.json();
-    if(!res.ok) return { error: data };
+    console.log('[WhatsApp] Response:', res.status, JSON.stringify(data));
+    if(!res.ok){
+      console.error('[WhatsApp] Send failed:', res.status, data);
+      return { error: data };
+    }
     return { data };
   } catch(err){
+    console.error('[WhatsApp] Network error:', err);
     return { error: err.message || 'Network error sending WhatsApp message' };
   }
 }
