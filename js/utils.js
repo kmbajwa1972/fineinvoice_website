@@ -257,3 +257,14 @@ function setActiveNav(){
     if(a.getAttribute('href')===page) a.classList.add('active');
   });
 }
+
+// ── HTML escape (prevent XSS in admin-rendered content) ──
+function escapeHtml(str){
+  if(!str) return '';
+  return String(str)
+    .replace(/&/g,  '&amp;')
+    .replace(/</g,  '&lt;')
+    .replace(/>/g,  '&gt;')
+    .replace(/"/g,  '&quot;')
+    .replace(/'/g,  '&#39;');
+}
