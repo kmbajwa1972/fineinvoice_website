@@ -61,13 +61,14 @@
   outline: none; transition: all .2s;
 }
 .items-table input:focus { border-color: var(--violet); background: rgba(167,139,250,.1); }
-.items-table .desc-col { width: 32%; }
-.items-table .qty-col  { width: 8%;  }
-.items-table .unit-col { width: 10%; }
-.items-table .rate-col { width: 14%; }
-.items-table .tax-col  { width: 9%;  }
-.items-table .disc-col { width: 9%;  }
-.items-table .amt-col  { width: 12%; font-weight: 600; color: var(--violet); padding-left: 8px; white-space:nowrap; }
+.items-table .desc-col { width: 38%; min-width: 160px; }
+.items-table .qty-col  { width: 8%;  min-width: 52px; }
+.items-table .unit-col { width: 9%;  min-width: 56px; }
+.items-table .rate-col { width: 13%; min-width: 80px; }
+.items-table .tax-col  { width: 8%;  min-width: 52px; }
+.items-table .disc-col { width: 8%;  min-width: 52px; }
+.items-table .amt-col  { width: 14%; min-width: 80px; font-weight: 600; color: var(--violet); padding-left: 8px; white-space:nowrap; }
+.items-table input { min-width: 40px; }
 .del-row-btn {
   background: none; border: none; cursor: pointer; color: var(--coral); font-size: 15px; padding: 3px 5px;
   border-radius: 6px; transition: background .2s;
@@ -593,7 +594,7 @@ function livePreview(){
     ? `<img src="${logoData}" class="inv-logo">`
     : `<div class="inv-badge" style="color:${themeColor}">INVOICE</div>`;
 
-  const advHeaders = isAdv ? `<th style="text-align:right;width:8%">Tax%</th><th style="text-align:right;width:8%">Disc%</th>` : '';
+  const advHeaders = isAdv ? `<th style="text-align:right;width:7%">Tax%</th><th style="text-align:right;width:7%">Disc%</th>` : '';
 
   document.getElementById('invoiceDoc').innerHTML = `
     <div class="inv-header">
@@ -614,17 +615,17 @@ function livePreview(){
         <div><strong>Invoice #</strong> ${invNum}</div>
         ${invDate ? `<div><strong>Issue Date</strong> ${invDate}</div>` : ''}
         ${dueDate ? `<div><strong>Due Date</strong> ${dueDate}</div>`   : ''}
-        <div><strong>Currency</strong> ${currency}</div>
+        <div><strong>Currency</strong> ${currency} ${sym.trim()}</div>
       </div>
     </div>
     <table class="inv-items-table">
       <thead>
         <tr style="color:${themeColor}">
-          <th style="width:${isAdv?'34%':'44%'}">Description</th>
-          <th style="text-align:center;width:10%">Qty</th>
+          <th style="width:${isAdv?'36%':'48%'}">Description</th>
+          <th style="text-align:center;width:${isAdv?'8%':'10%'}">Qty</th>
           ${advHeaders}
-          <th style="text-align:right;width:18%">Rate</th>
-          <th style="text-align:right;width:18%">Amount</th>
+          <th style="text-align:right;width:${isAdv?'14%':'20%'}">Rate</th>
+          <th style="text-align:right;width:${isAdv?'14%':'20%'}">Amount</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -680,7 +681,7 @@ function saveInvoice(){
 async function printInvoice(){
   const u = getCurrentUser();
   if(!hasInvoiceAccess(u, currentDraftId)){
-    if(confirm('Printing requires a paid plan.\n\nPKR 199 / $2 per invoice\nor PKR 4,999 / $25 for Lifetime.\n\nGo to Billing?')) window.location.href = 'payment.html';
+    if(confirm('Printing requires a paid plan.\n\nSingle — $2 per invoice\nLifetime — $25 forever\n\nGo to Billing?')) window.location.href = 'payment.html';
     return;
   }
   await consumeInvoiceCredit(u, currentDraftId);
@@ -692,7 +693,7 @@ async function printInvoice(){
 async function downloadPDF(){
   const u = getCurrentUser();
   if(!hasInvoiceAccess(u, currentDraftId)){
-    if(confirm('Download requires a paid plan.\n\nGo to Billing?')) window.location.href = 'payment.html';
+    if(confirm('Download requires a paid plan ($2 Single or $25 Lifetime).\n\nGo to Billing?')) window.location.href = 'payment.html';
     return;
   }
   await consumeInvoiceCredit(u, currentDraftId);
