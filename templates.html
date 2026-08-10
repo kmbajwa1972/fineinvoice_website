@@ -228,7 +228,9 @@ const TEMPLATES = [
 ];
 
 function miniPreview(t){
-  const sym = '₨';
+  // Use selected currency from app if available, default PKR for previews
+  const symMap = { PKR:'₨', USD:'$', EUR:'€', AED:'AED ', GBP:'£' };
+  const sym = '₨'; // Templates always preview in PKR (mini preview only)
   const subtotal = t.items.reduce((s, i) => s + (i.qty * i.rate), 0);
   const rows = t.items.map(i => `
     <tr>
@@ -256,7 +258,7 @@ function miniPreview(t){
         <tbody>${rows}</tbody>
       </table>
       <div class="mini-total" style="color:${t.color}">
-        Total: ${sym}${subtotal.toLocaleString()}
+        Total: ₨ ${subtotal.toLocaleString()} PKR
       </div>
     </div>`;
 }
