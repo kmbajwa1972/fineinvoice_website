@@ -42,3 +42,52 @@ function generateUnlockCode(){const p=()=>Math.random().toString(36).slice(2,6).
 async function verifySubmissionAndIssueCode(id){const sb=getSupabase();if(!sb)return{error:{message:'Database unavailable'}};const{data:{session}}=await sb.auth.getSession();if(!session)return{error:{message:'Not authenticated'}};try{const r=await fetch(`${SUPABASE_URL}/functions/v1/admin-payments`,{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action:'verify',id})}),j=await r.json();return r.ok?{data:j.data,error:null}:{data:null,error:{message:j.error||'Verification failed'}}}catch(e){return{data:null,error:{message:e.message||'Verification failed'}}}}
 async function sendWhatsAppCode(){return{error:'WhatsApp delivery is temporarily disabled for security.'}}async function notifyAdminNewSubmission(){return{error:'WhatsApp admin alerts require the server-side function.'}}function normalizeWhatsappNumber(raw){let d=String(raw).replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('0')&&d.length===11)d='92'+d.slice(1);return d}const ADMIN_WHATSAPP_NUMBER='';
 function setActiveNav(){const p=location.pathname.split('/').pop();document.querySelectorAll('.sidebar-nav a,.sb-nav a').forEach(a=>{if(a.getAttribute('href')===p)a.classList.add('active')})}function escapeHtml(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
+
+// Invoice Builder hardening: replace the legacy download/print handlers after the page scripts load.
+// The original handlers charged a credit before generating the artifact. These wrappers generate first,
+// then consume exactly one credit only after a successful artifact, preventing failed downloads from charging users.
+window.addEventListener('load',()=>{
+  if(typeof window.downloadPDF==='function'){
+    window.downloadPDF=async function(){
+      const u=getCurrentUser();
+      if(!hasInvoiceAccess(u,window.currentDraftId)){
+        if(confirm('Download requires a paid plan ($2 Single or $25 Lifetime).\n\nGo to Billing?')) window.location.href='payment.html';
+        return;
+      }
+      showToast('Generating PDF…','info');
+      try{
+        const el=document.getElementById('invoiceDoc');
+        if(!el)throw new Error('Invoice preview not found');
+        const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+        const {jsPDF}=window.jspdf||{};
+        if(!jsPDF)throw new Error('PDF engine unavailable');
+        const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+        const imgData=canvas.toDataURL('image/png');
+        const pageW=doc.internal.pageSize.getWidth();
+        const pageH=(canvas.height*pageW)/canvas.width;
+        doc.addImage(imgData,'PNG',0,0,pageW,pageH);
+        const invNum=(document.getElementById('invNumber')?.value||'invoice').replace(/[^a-z0-9._-]/gi,'_');
+        doc.save(invNum+'.pdf');
+        const charged=await consumeInvoiceCredit(u,window.currentDraftId);
+        if(!charged.ok){showToast('PDF was created, but the invoice could not be unlocked: '+charged.error,'error',6000);return;}
+        const dl=parseInt(localStorage.getItem('fi_downloads')||'0',10)+1;
+        localStorage.setItem('fi_downloads',String(dl));
+        showToast('PDF downloaded! 🎉','success');
+      }catch(e){console.error('PDF generation failed:',e);showToast('PDF generation failed. Your credit was not charged.','error',5000)}
+    };
+  }
+  if(typeof window.printInvoice==='function'){
+    window.printInvoice=async function(){
+      const u=getCurrentUser();
+      if(!hasInvoiceAccess(u,window.currentDraftId)){
+        if(confirm('Printing requires a paid plan.\n\nSingle — $2 per invoice\nLifetime — $25 forever\n\nGo to Billing?')) window.location.href='payment.html';
+        return;
+      }
+      try{
+        document.body.classList.add('print-mode');
+        window.print();
+        setTimeout(async()=>{document.body.classList.remove('print-mode');const charged=await consumeInvoiceCredit(u,window.currentDraftId);if(!charged.ok)showToast('Invoice printed, but credit could not be recorded: '+charged.error,'error',6000);else showToast('Invoice printed successfully!','success')},600);
+      }catch(e){document.body.classList.remove('print-mode');showToast('Printing failed. Your credit was not charged.','error',5000)}
+    };
+  }
+});
