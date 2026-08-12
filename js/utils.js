@@ -60,8 +60,8 @@ async function syncPlanFromSupabase(){
   } catch(e){
     console.warn('Plan sync error:', e);
   }
-}
-  return user;
+//}
+//  return user;
 }
 
 // ── Plan gate helper ──
