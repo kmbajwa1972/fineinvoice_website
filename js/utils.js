@@ -28,6 +28,39 @@ function saveCurrentUser(u){ localStorage.setItem('fi_current_user', JSON.string
 function requireAuth(redirect='signin.html'){
   const user = getCurrentUser();
   if(!user){ window.location.href = redirect; return null; }
+  // Sync plan from Supabase Auth in background
+  syncPlanFromSupabase();
+  return user;
+}
+
+// ── Sync plan from Supabase Auth user_metadata ──
+// Called on every page load — updates localStorage if plan changed in Supabase
+async function syncPlanFromSupabase(){
+  try {
+    const sb = getSupabase();
+    if(!sb) return;
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session) return;
+    const meta = session.user?.user_metadata || {};
+    const remotePlan = meta.plan || 'free';
+    const localUser  = getCurrentUser();
+    if(!localUser) return;
+    // Only upgrade — never downgrade from localStorage
+    const order = { free:0, single:1, lifetime:2 };
+    const remoteLevel = order[remotePlan]  ?? 0;
+    const localLevel  = order[localUser.plan || 'free'] ?? 0;
+    if(remoteLevel > localLevel){
+      localUser.plan = remotePlan;
+      localUser.plan_activated_at = meta.plan_activated_at || new Date().toISOString();
+      saveCurrentUser(localUser);
+      console.log('✅ Plan synced from Supabase:', remotePlan);
+      // Refresh page to apply new plan UI
+      window.location.reload();
+    }
+  } catch(e){
+    console.warn('Plan sync error:', e);
+  }
+}
   return user;
 }
 
