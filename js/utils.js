@@ -26,7 +26,7 @@ function invoiceRow(i,userId){return{user_id:userId,invoice_number:i.invoice_num
 async function createCloudInvoice(i){const u=await getAuthUser();if(!u)return{data:null,error:{message:'Not authenticated'}};return dbInsert('invoices',invoiceRow(i,u.id))}
 async function updateCloudInvoice(id,i){return dbUpdate('invoices',id,{invoice_number:i.invoice_number??i.invNumber??null,customer_id:i.customer_id??null,status:i.status||'draft',currency:i.currency||null,total:Number(i.total??i.grandTotal??0)||0,payload:{...i,legacy_id:i.id!=null?String(i.id):null}})}
 async function getCloudInvoice(id){const sb=getSupabase();const u=await getAuthUser();if(!sb||!u)return{data:null,error:{message:'Not authenticated'}};const byId=await sb.from('invoices').select('*').eq('id',id).eq('user_id',u.id).maybeSingle();if(byId.data||byId.error)return byId;return sb.from('invoices').select('*').eq('user_id',u.id).filter('payload->>legacy_id','eq',String(id)).maybeSingle()}
-async function syncInvoicesToCloud(invoices){const sb=getSupabase(),u=await getAuthUser();if(!sb||!u||!Array.isArray(invoices))return;for(const invoice of invoices){if(!invoice||invoice.id==null)continue;try{const payload=invoiceRow(invoice,u.id);const existing=await sb.from('invoices').select('id').eq('user_id',u.id).filter('payload->>legacy_id','eq',String(invoice.id)).maybeSingle();if(existing.data?.id)await updateCloudInvoice(existing.data.id,invoice);else await createCloudInvoice(invoice)}catch(e){console.warn('Invoice cloud sync failed:',e)}}}
+async function syncInvoicesToCloud(invoices){const sb=getSupabase(),u=await getAuthUser();if(!sb||!u||!Array.isArray(invoices))return;for(const invoice of invoices){if(!invoice||invoice.id==null)continue;try{const existing=await sb.from('invoices').select('id').eq('user_id',u.id).filter('payload->>legacy_id','eq',String(invoice.id)).maybeSingle();if(existing.data?.id)await updateCloudInvoice(existing.data.id,invoice);else await createCloudInvoice(invoice)}catch(e){console.warn('Invoice cloud sync failed:',e)}}}
 async function syncCustomersToCloud(customers){const sb=getSupabase(),u=await getAuthUser();if(!sb||!u||!Array.isArray(customers))return;for(const customer of customers){if(!customer)continue;try{const legacyId=customer.id!=null?String(customer.id):null;let existing=null;if(legacyId)existing=await sb.from('customers').select('id').eq('user_id',u.id).filter('payload->>legacy_id','eq',legacyId).maybeSingle();const row={name:customer.name||'',company:customer.company||null,email:customer.email||null,phone:customer.phone||null,address:customer.address||null,payload:{...customer,legacy_id:legacyId}};if(existing?.data?.id)await sb.from('customers').update(row).eq('id',existing.data.id);else await sb.from('customers').insert({...row,user_id:u.id})}catch(e){console.warn('Customer cloud sync failed:',e)}}}
 async function createCustomer(c){const r=await createCloudCustomer(c);if(r.error)throw new Error(r.error.message);return r.data}async function updateCustomer(id,c){return dbUpdate('customers',id,{name:c.name||'',company:c.company||null,email:c.email||null,phone:c.phone||null,address:c.address||null,payload:{...c,legacy_id:String(id)}})}async function removeCustomer(id){const r=await deleteCloudCustomer(id);if(r.error)throw new Error(r.error.message);return true}
 async function consumeInvoiceCredit(u,id){if(!u||u.plan==='lifetime')return{ok:true};const ids=Array.isArray(u.unlockedInvoiceIds)?u.unlockedInvoiceIds:[];if(ids.includes(id))return{ok:true};if(Number(u.singleCredits||0)<=0)return{ok:false,error:'No invoice credits remaining'};const nextCredits=Math.max(0,Number(u.singleCredits)-1),nextIds=[...ids,id],sb=getSupabase();if(sb){const{error}=await sb.auth.updateUser({data:{singleCredits:nextCredits,unlockedInvoiceIds:nextIds}});if(error)return{ok:false,error:error.message}}u.singleCredits=nextCredits;u.unlockedInvoiceIds=nextIds;saveCurrentUser(u);return{ok:true}}
@@ -43,51 +43,11 @@ async function verifySubmissionAndIssueCode(id){const sb=getSupabase();if(!sb)re
 async function sendWhatsAppCode(){return{error:'WhatsApp delivery is temporarily disabled for security.'}}async function notifyAdminNewSubmission(){return{error:'WhatsApp admin alerts require the server-side function.'}}function normalizeWhatsappNumber(raw){let d=String(raw).replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('0')&&d.length===11)d='92'+d.slice(1);return d}const ADMIN_WHATSAPP_NUMBER='';
 function setActiveNav(){const p=location.pathname.split('/').pop();document.querySelectorAll('.sidebar-nav a,.sb-nav a').forEach(a=>{if(a.getAttribute('href')===p)a.classList.add('active')})}function escapeHtml(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 
-// Invoice Builder hardening: replace the legacy download/print handlers after the page scripts load.
-// The original handlers charged a credit before generating the artifact. These wrappers generate first,
-// then consume exactly one credit only after a successful artifact, preventing failed downloads from charging users.
+// Invoice Builder hardening. These wrappers run after app.html's inline script and preserve its UI.
+function getBuilderDraftId(){const p=new URLSearchParams(location.search).get('invoice');if(p)return p;let id=localStorage.getItem('fi_builder_draft_id');if(!id){id='DRAFT-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);localStorage.setItem('fi_builder_draft_id',id)}return id}
+function collectBuilderInvoice(){const rows=[...document.querySelectorAll('#itemsBody tr')].map(tr=>{const ins=tr.querySelectorAll('input');return{desc:ins[0]?.value||'',qty:ins[1]?.value||1,unit:ins[2]?.value||'',rate:ins[3]?.value||0,itemTax:ins[4]?.value||0,itemDisc:ins[5]?.value||0}});let subtotal=0,taxAmt=0,discAmt=0;rows.forEach(r=>{const base=(parseFloat(r.qty)||0)*(parseFloat(r.rate)||0);subtotal+=base;taxAmt+=base*(parseFloat(r.itemTax)||0)/100;discAmt+=base*(parseFloat(r.itemDisc)||0)/100});taxAmt+=subtotal*(parseFloat(document.getElementById('tax')?.value)||0)/100;discAmt+=subtotal*(parseFloat(document.getElementById('discount')?.value)||0)/100;return{id:getBuilderDraftId(),company:document.getElementById('company')?.value||'',customer:document.getElementById('customer')?.value||'',bizEmail:document.getElementById('bizEmail')?.value||'',custEmail:document.getElementById('custEmail')?.value||'',custAddress:document.getElementById('custAddress')?.value||'',currency:document.getElementById('currency')?.value||'PKR',total:subtotal+taxAmt-discAmt,invNumber:document.getElementById('invNumber')?.value||'',invDate:document.getElementById('invDate')?.value||'',dueDate:document.getElementById('dueDate')?.value||'',notes:document.getElementById('notes')?.value||'',themeColor:document.querySelector('.theme-dot.selected')?.dataset.color||'#6C3FF5',logoData:document.getElementById('logoImg')?.src||'',items:rows,date:new Date().toISOString(),status:'saved'}}
 window.addEventListener('load',()=>{
-  if(typeof window.downloadPDF==='function'){
-    window.downloadPDF=async function(){
-      const u=getCurrentUser();
-      if(!hasInvoiceAccess(u,window.currentDraftId)){
-        if(confirm('Download requires a paid plan ($2 Single or $25 Lifetime).\n\nGo to Billing?')) window.location.href='payment.html';
-        return;
-      }
-      showToast('Generating PDF…','info');
-      try{
-        const el=document.getElementById('invoiceDoc');
-        if(!el)throw new Error('Invoice preview not found');
-        const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-        const {jsPDF}=window.jspdf||{};
-        if(!jsPDF)throw new Error('PDF engine unavailable');
-        const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-        const imgData=canvas.toDataURL('image/png');
-        const pageW=doc.internal.pageSize.getWidth();
-        const pageH=(canvas.height*pageW)/canvas.width;
-        doc.addImage(imgData,'PNG',0,0,pageW,pageH);
-        const invNum=(document.getElementById('invNumber')?.value||'invoice').replace(/[^a-z0-9._-]/gi,'_');
-        doc.save(invNum+'.pdf');
-        const charged=await consumeInvoiceCredit(u,window.currentDraftId);
-        if(!charged.ok){showToast('PDF was created, but the invoice could not be unlocked: '+charged.error,'error',6000);return;}
-        const dl=parseInt(localStorage.getItem('fi_downloads')||'0',10)+1;
-        localStorage.setItem('fi_downloads',String(dl));
-        showToast('PDF downloaded! 🎉','success');
-      }catch(e){console.error('PDF generation failed:',e);showToast('PDF generation failed. Your credit was not charged.','error',5000)}
-    };
-  }
-  if(typeof window.printInvoice==='function'){
-    window.printInvoice=async function(){
-      const u=getCurrentUser();
-      if(!hasInvoiceAccess(u,window.currentDraftId)){
-        if(confirm('Printing requires a paid plan.\n\nSingle — $2 per invoice\nLifetime — $25 forever\n\nGo to Billing?')) window.location.href='payment.html';
-        return;
-      }
-      try{
-        document.body.classList.add('print-mode');
-        window.print();
-        setTimeout(async()=>{document.body.classList.remove('print-mode');const charged=await consumeInvoiceCredit(u,window.currentDraftId);if(!charged.ok)showToast('Invoice printed, but credit could not be recorded: '+charged.error,'error',6000);else showToast('Invoice printed successfully!','success')},600);
-      }catch(e){document.body.classList.remove('print-mode');showToast('Printing failed. Your credit was not charged.','error',5000)}
-    };
-  }
+  window.saveInvoice=async function(){const inv=collectBuilderInvoice();if(!inv.company||!inv.customer){showToast('Please enter company and customer name','error');return}const invoices=getInvoices();const i=invoices.findIndex(x=>x.id===inv.id);if(i>=0)invoices[i]=inv;else invoices.push(inv);saveInvoices(invoices);showToast('Invoice saved ✅','success')};
+  window.downloadPDF=async function(){const u=getCurrentUser(),id=getBuilderDraftId();if(!hasInvoiceAccess(u,id)){if(confirm('Download requires a paid plan ($2 Single or $25 Lifetime).\n\nGo to Billing?'))location.href='payment.html';return}showToast('Generating PDF…','info');try{const el=document.getElementById('invoiceDoc');if(!el)throw new Error('Invoice preview not found');const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#fff'});const jsPDF=window.jspdf?.jsPDF;if(!jsPDF)throw new Error('PDF engine unavailable');const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});const img=canvas.toDataURL('image/png');const w=doc.internal.pageSize.getWidth(),h=canvas.height*w/canvas.width;doc.addImage(img,'PNG',0,0,w,h);const n=(document.getElementById('invNumber')?.value||'invoice').replace(/[^a-z0-9._-]/gi,'_');doc.save(n+'.pdf');const charged=await consumeInvoiceCredit(u,id);if(!charged.ok){showToast('PDF created, but credit could not be recorded: '+charged.error,'error',6000);return}localStorage.setItem('fi_downloads',String(parseInt(localStorage.getItem('fi_downloads')||'0',10)+1));showToast('PDF downloaded! 🎉','success')}catch(e){console.error(e);showToast('PDF generation failed. Your credit was not charged.','error',5000)}};
+  window.printInvoice=async function(){const u=getCurrentUser(),id=getBuilderDraftId();if(!hasInvoiceAccess(u,id)){if(confirm('Printing requires a paid plan.\n\nGo to Billing?'))location.href='payment.html';return}document.body.classList.add('print-mode');window.print();setTimeout(async()=>{document.body.classList.remove('print-mode');const charged=await consumeInvoiceCredit(u,id);if(charged.ok)showToast('Invoice printed successfully!','success');else showToast('Invoice printed, but credit could not be recorded: '+charged.error,'error',6000)},700)};
 });
