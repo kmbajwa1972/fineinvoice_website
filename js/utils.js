@@ -13,18 +13,22 @@ function getSupabase() {
   return null;
 }
 
-function escapeHtml(str){
-  return String(str ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function safeJsonParse(value,fallback){
+  try{return value ? JSON.parse(value) : fallback;}catch(err){console.warn('FineInvoice storage reset:',err);return fallback;}
 }
 
-function getCustomers(){ return JSON.parse(localStorage.getItem('fi_customers')||'[]'); }
-function getInvoices(){ return JSON.parse(localStorage.getItem('fi_invoices')||'[]'); }
-function getLicense(){ return JSON.parse(localStorage.getItem('fi_license')||'{}'); }
-function getCurrentUser(){ return JSON.parse(localStorage.getItem('fi_current_user')||'null'); }
-function getUsers(){ return JSON.parse(localStorage.getItem('fi_users')||'[]'); }
-function saveCustomers(d){ localStorage.setItem('fi_customers',JSON.stringify(d)); }
-function saveInvoices(d){ localStorage.setItem('fi_invoices',JSON.stringify(d)); }
-function saveLicense(d){ localStorage.setItem('fi_license',JSON.stringify(d)); }
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function getCustomers(){ return safeJsonParse(localStorage.getItem('fi_customers'),[]); }
+function getInvoices(){ return safeJsonParse(localStorage.getItem('fi_invoices'),[]); }
+function getLicense(){ return safeJsonParse(localStorage.getItem('fi_license'),{}); }
+function getCurrentUser(){ return safeJsonParse(localStorage.getItem('fi_current_user'),null); }
+function getUsers(){ return safeJsonParse(localStorage.getItem('fi_users'),[]); }
+function saveCustomers(d){ localStorage.setItem('fi_customers',JSON.stringify(Array.isArray(d)?d:[])); }
+function saveInvoices(d){ localStorage.setItem('fi_invoices',JSON.stringify(Array.isArray(d)?d:[])); }
+function saveLicense(d){ localStorage.setItem('fi_license',JSON.stringify(d&&typeof d==='object'?d:{})); }
 function saveCurrentUser(u){ if(u)localStorage.setItem('fi_current_user',JSON.stringify(u));else localStorage.removeItem('fi_current_user'); }
 
 function requireAuth(redirect='signin.html'){
@@ -62,7 +66,10 @@ function showToast(msg,type='info',duration=3000){
   let c=document.getElementById('toast-container');
   if(!c){c=document.createElement('div');c.id='toast-container';c.className='toast-container';document.body.appendChild(c);}
   const t=document.createElement('div'),icons={success:'✅',error:'❌',info:'💡'};
-  t.className=`toast ${type}`;t.innerHTML=`<span>${icons[type]||'💡'}</span><span>${msg}</span>`;c.appendChild(t);
+  t.className=`toast ${type}`;
+  const icon=document.createElement('span');icon.textContent=icons[type]||'💡';
+  const text=document.createElement('span');text.textContent=String(msg??'');
+  t.append(icon,text);c.appendChild(t);
   setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(120%)';t.style.transition='.3s';setTimeout(()=>t.remove(),300);},duration);
 }
 
@@ -94,7 +101,6 @@ async function callAdminPayments(action,extra={}){
 async function getAllSubmissions(){return callAdminPayments('list');}
 async function verifySubmissionAndIssueCode(id){return callAdminPayments('verify',{id});}
 
-// ── Invoice access ──
 function hasInvoiceAccess(user,invoiceId){
   if(!user)return false;
   const plan=String(user.plan||'free').toLowerCase();
