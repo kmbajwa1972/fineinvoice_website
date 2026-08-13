@@ -1,0 +1,54 @@
+name: Update Index Payment Copy
+on:
+  push:
+    branches: [repair/professional-clean-2026-08-12]
+    paths: ['.github/workflows/update-index-payment-copy.yml']
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update payment copy
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          replacements = {
+            'Download PDF for PKR 199 or $2. Perfect for freelancers, agencies & small businesses. Supports EasyPaisa, JazzCash & PayPal.':'Create professional invoices for freelancers, agencies & small businesses. Get 3 free PDF downloads on signup, then pay $2 for a single PDF or $25 for Lifetime Access. Debit/credit card checkout is handled securely by Polar.',
+            'Create professional invoices in 30 seconds. Download PDF for PKR 199 or $2. Supports EasyPaisa, JazzCash & PayPal. No signup needed.':'Create professional invoices in 30 seconds. New accounts receive 3 free PDF downloads, with secure Debit/credit card checkout via Polar for Single PDF and Lifetime Access plans.',
+            'Create professional invoices in 30 seconds. PKR 199 or $2 to download. No signup needed.':'Create professional invoices in 30 seconds. Get 3 free PDF downloads on signup, then use secure Polar Debit/credit card checkout for paid access.',
+            '"price": "199",\n      "priceCurrency": "PKR",\n      "description": "Download invoice as PDF via EasyPaisa or JazzCash"':'"price": "2",\n      "priceCurrency": "USD",\n      "description": "Single PDF download with secure Debit/credit card checkout via Polar"',
+            '"price": "4999",\n      "priceCurrency": "PKR",\n      "description": "Unlimited PDF downloads, all future features, desktop app included"':'"price": "25",\n      "priceCurrency": "USD",\n      "description": "Lifetime Access with unlimited PDF downloads and secure Debit/credit card checkout via Polar"',
+            '"EasyPaisa & JazzCash payment support",':'"Debit/credit card payments via Polar",',
+            'Create stunning professional invoices in seconds. Accept EasyPaisa, JazzCash &amp; PayPal. Download polished PDFs instantly.':'Create stunning professional invoices in seconds. Get 3 free PDF downloads, then use secure Debit/credit card checkout via Polar for paid PDF access. Download polished PDFs instantly.',
+            'EasyPaisa · JazzCash ✓':'Debit / Credit Cards · Polar ✓',
+            'EasyPaisa, JazzCash, and PayPal. Accept payments the way your clients prefer.':'Secure Debit/credit card checkout via Polar for FineInvoice plans.',
+            'PKR <span></span>199':'$<span></span>2',
+            'or $2 · Per invoice PDF':'Single PDF · Secure Polar checkout',
+            'Buy Now — PKR 199 →':'Buy Single PDF — $2 →',
+            'PKR <span></span>4,999':'$<span></span>25',
+            'or $25 · Pay once, use forever':'Pay once · Lifetime Access',
+            'Get Lifetime — PKR 4,999 →':'Get Lifetime — $25 →',
+            'pay once (PKR 4,999 / $25), use forever.':'pay once ($25), use forever.',
+            'EasyPaisa Ready':'Payment Ready'
+          }
+          for old, new in replacements.items():
+            s = s.replace(old, new)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit updated index.html
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Update landing page to Polar pricing and card payments'
+          git push
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/update-index-payment-copy.yml
+          git commit -m 'Remove temporary index update workflow'
+          git push
