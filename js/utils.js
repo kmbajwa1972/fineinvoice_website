@@ -161,9 +161,26 @@ window.addEventListener('DOMContentLoaded',()=>{
       showToast('Generating PDF…','info');
       try{
         const el=document.getElementById('invoiceDoc');
-        const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-        const{jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-        const imgData=canvas.toDataURL('image/png');const pageW=doc.internal.pageSize.getWidth();const pageH=(canvas.height*pageW)/canvas.width;doc.addImage(imgData,'PNG',0,0,pageW,pageH);
+        if(!el)throw new Error('Invoice preview not found');
+        const previousHeight=el.style.height,previousOverflow=el.style.overflow;
+        el.style.height='auto';el.style.overflow='visible';
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',width:el.scrollWidth,height:el.scrollHeight,windowWidth:Math.max(document.documentElement.clientWidth,el.scrollWidth),windowHeight:Math.max(window.innerHeight,el.scrollHeight),scrollX:0,scrollY:-window.scrollY});
+        el.style.height=previousHeight;el.style.overflow=previousOverflow;
+        const{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),imgH=(canvas.height*pageW)/canvas.width;
+        let renderedHeight=0;
+        while(renderedHeight<imgH-0.01){
+          const sliceHeight=Math.min(pageH,imgH-renderedHeight);
+          const sourceY=Math.floor((renderedHeight*canvas.width)/pageW);
+          const sourceHeight=Math.max(1,Math.min(canvas.height-sourceY,Math.floor((sliceHeight*canvas.width)/pageW)));
+          const sliceCanvas=document.createElement('canvas');sliceCanvas.width=canvas.width;sliceCanvas.height=sourceHeight;
+          const ctx=sliceCanvas.getContext('2d');if(!ctx)throw new Error('PDF canvas unavailable');
+          ctx.fillStyle='#ffffff';ctx.fillRect(0,0,sliceCanvas.width,sliceCanvas.height);
+          ctx.drawImage(canvas,0,sourceY,canvas.width,sourceHeight,0,0,canvas.width,sourceHeight);
+          if(renderedHeight>0)doc.addPage();
+          doc.addImage(sliceCanvas.toDataURL('image/png'),'PNG',0,0,pageW,(sourceHeight*pageW)/canvas.width);
+          renderedHeight+=sliceHeight;
+        }
         const invNum=document.getElementById('invNumber').value||'invoice';doc.save(invNum+'.pdf');
         if(!alreadyUnlocked&&String(user.plan||'free').toLowerCase()!=='lifetime'){
           const r=await consumeInvoiceCredit(user,invoiceId);if(!r.ok){showToast(r.error||'Could not save PDF credit','error');return;}
