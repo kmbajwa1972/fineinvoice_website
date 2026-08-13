@@ -1,0 +1,53 @@
+name: Fix PDF total pagination
+
+on:
+  push:
+    branches:
+      - repair/professional-clean-2026-08-12
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: repair/professional-clean-2026-08-12
+          fetch-depth: 1
+
+      - name: Patch PDF generator
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.html')
+          s = p.read_text(encoding='utf-8')
+          start = s.index('async function downloadPDF(){')
+          end = s.index('\nfunction openEmailModal()', start)
+          new = '''async function downloadPDF(){const u=await getInvoiceAccessUser(),invoiceId=String(currentDraftId);if(!invoiceHasAccess(u,invoiceId)){if(confirm('Your free PDF credits have been used.\\n\\nSingle: $2 per invoice\\nor Lifetime: $25 unlimited.\\n\\nGo to Billing?'))window.location.href='payment.html';return}const alreadyUnlocked=String(u?.plan||'free').toLowerCase()==='lifetime'||(u.unlockedInvoiceIds||[]).map(String).includes(invoiceId);showToast('Generating PDF…','info');const el=document.getElementById('invoiceDoc');try{const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff'});const{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),imgH=(canvas.height*pageW)/canvas.width;let renderedHeight=0;while(renderedHeight<imgH){const sliceHeight=Math.min(pageH,imgH-renderedHeight),sourceY=Math.floor(renderedHeight*canvas.width/pageW),sourceHeight=Math.max(1,Math.floor(sliceHeight*canvas.width/pageW));const sliceCanvas=document.createElement('canvas');sliceCanvas.width=canvas.width;sliceCanvas.height=sourceHeight;const ctx=sliceCanvas.getContext('2d');if(!ctx)throw new Error('PDF canvas unavailable');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,sliceCanvas.width,sliceCanvas.height);ctx.drawImage(canvas,0,sourceY,canvas.width,sourceHeight,0,0,canvas.width,sourceHeight);if(renderedHeight>0)doc.addPage();doc.addImage(sliceCanvas.toDataURL('image/png'),'PNG',0,0,pageW,(sourceHeight*pageW)/canvas.width);renderedHeight+=sliceHeight}const invNum=document.getElementById('invNumber').value||'invoice';doc.save(invNum+'.pdf');if(!alreadyUnlocked){const r=await consumeCommercialInvoiceCredit(u,invoiceId);if(!r?.ok){showToast(r?.error||'Could not save PDF entitlement','error');return}}const dl=parseInt(localStorage.getItem('fi_downloads')||'0')+1;localStorage.setItem('fi_downloads',dl);showToast('PDF downloaded! 🎉','success')}catch(e){console.error(e);showToast('PDF generation failed. Your PDF credit was not used.','error')}}'''
+          p.write_text(s[:start] + new + s[end:], encoding='utf-8')
+          PY
+
+      - name: Verify and commit
+        run: |
+          grep -q "doc.addPage()" app.html
+          grep -q "sourceY" app.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.html
+          git commit -m "Fix PDF pagination so invoice totals remain visible" || exit 0
+          git push origin HEAD:repair/professional-clean-2026-08-12
+
+      - name: Remove temporary workflow
+        if: always()
+        run: |
+          git fetch origin repair/professional-clean-2026-08-12
+          git checkout repair/professional-clean-2026-08-12
+          rm -f .github/workflows/fix-pdf-total.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/fix-pdf-total.yml
+          git commit -m "Remove temporary PDF fix workflow" || exit 0
+          git push origin HEAD:repair/professional-clean-2026-08-12
