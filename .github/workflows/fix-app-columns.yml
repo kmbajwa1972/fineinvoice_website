@@ -1,0 +1,57 @@
+name: Fix Invoice Builder Columns
+
+on:
+  push:
+    branches:
+      - repair/professional-clean-2026-08-12
+
+permissions:
+  contents: write
+
+jobs:
+  fix-columns:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: repair/professional-clean-2026-08-12
+          fetch-depth: 1
+
+      - name: Update line-item column widths
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("app.html")
+          text = path.read_text(encoding="utf-8")
+
+          old = ".items-table .desc-col{width:32%}.items-table .qty-col{width:8%}.items-table .unit-col{width:10%}.items-table .rate-col{width:14%}.items-table .tax-col{width:9%}.items-table .disc-col{width:9%}.items-table .amt-col{width:12%;font-weight:600;color:var(--violet);padding-left:8px;white-space:nowrap}"
+
+          new = ".items-table .desc-col{width:42%;min-width:260px}.items-table .qty-col{width:11%;min-width:90px;text-align:center}.items-table .unit-col{width:10%;min-width:90px}.items-table .rate-col{width:16%;min-width:130px}.items-table .tax-col{width:8%;min-width:80px}.items-table .disc-col{width:8%;min-width:80px}.items-table .amt-col{width:16%;min-width:135px;font-weight:600;color:var(--violet);padding-left:8px;white-space:nowrap}"
+
+          if old not in text:
+              raise SystemExit("Expected column CSS was not found; refusing to modify app.html")
+
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          print("Invoice Builder column CSS updated")
+
+      - name: Verify change
+        run: |
+          grep -o '.items-table .desc-col[^}]*}' app.html
+          grep -o '.items-table .qty-col[^}]*}' app.html
+          grep -o '.items-table .rate-col[^}]*}' app.html
+          grep -o '.items-table .amt-col[^}]*}' app.html
+
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.html
+          git commit -m "Improve invoice line item column widths"
+          rm .github/workflows/fix-app-columns.yml
+          git add .github/workflows/fix-app-columns.yml
+          git commit -m "Remove temporary column fix workflow"
+          git push origin repair/professional-clean-2026-08-12
