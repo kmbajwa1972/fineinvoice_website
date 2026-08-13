@@ -24,12 +24,32 @@ function escapeHtml(str){
 function getCustomers(){ return safeJsonParse(localStorage.getItem('fi_customers'),[]); }
 function getInvoices(){ return safeJsonParse(localStorage.getItem('fi_invoices'),[]); }
 function getLicense(){ return safeJsonParse(localStorage.getItem('fi_license'),{}); }
-function getCurrentUser(){ return safeJsonParse(localStorage.getItem('fi_current_user'),null); }
+
+// Paid plans are trusted only when the server/webhook has marked the account
+// as verified through Polar. Old localStorage values can never grant a paid plan.
+function normalizePlanUser(user){
+  if(!user || typeof user!=='object') return user;
+  const verified=user.planVerified===true && user.paymentProvider==='polar';
+  if(!verified){
+    user.plan='free';
+    user.planVerified=false;
+    user.paymentProvider=null;
+  } else if(!['single','lifetime'].includes(String(user.plan||'').toLowerCase())){
+    user.plan='free';
+  }
+  return user;
+}
+function getCurrentUser(){
+  const user=safeJsonParse(localStorage.getItem('fi_current_user'),null);
+  const normalized=normalizePlanUser(user);
+  if(normalized) localStorage.setItem('fi_current_user',JSON.stringify(normalized));
+  return normalized;
+}
 function getUsers(){ return safeJsonParse(localStorage.getItem('fi_users'),[]); }
 function saveCustomers(d){ localStorage.setItem('fi_customers',JSON.stringify(Array.isArray(d)?d:[])); }
 function saveInvoices(d){ localStorage.setItem('fi_invoices',JSON.stringify(Array.isArray(d)?d:[])); }
 function saveLicense(d){ localStorage.setItem('fi_license',JSON.stringify(d&&typeof d==='object'?d:{})); }
-function saveCurrentUser(u){ if(u)localStorage.setItem('fi_current_user',JSON.stringify(u));else localStorage.removeItem('fi_current_user'); }
+function saveCurrentUser(u){ if(u)localStorage.setItem('fi_current_user',JSON.stringify(normalizePlanUser(u)));else localStorage.removeItem('fi_current_user'); }
 
 function requireAuth(redirect='signin.html'){
   const user=getCurrentUser();
@@ -122,17 +142,16 @@ async function consumeInvoiceCredit(user,invoiceId){
   return{ok:true};
 }
 
-// ── Remove old Green-API delivery; payment notifications remain database/admin based. ──
+// Legacy manual-payment/WhatsApp code delivery is intentionally disabled.
+// WhatsApp is now notification-only after a verified Polar payment.
 function normalizeWhatsappNumber(raw){let d=String(raw).replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);return d;}
-async function sendWhatsAppCode(){return{error:'WhatsApp delivery is disabled.'};}
-async function notifyAdminNewSubmission(){return{error:'WhatsApp admin alerts are disabled.'};}
+async function sendWhatsAppCode(){return{error:'Unlock-code delivery is disabled. Polar payments activate plans automatically.'};}
+async function notifyAdminNewSubmission(){return{error:'Manual payment notifications are disabled.'};}
 const ADMIN_WHATSAPP_NUMBER='';
 
 function setActiveNav(){const page=window.location.pathname.split('/').pop();document.querySelectorAll('.sidebar-nav a').forEach(a=>{if(a.getAttribute('href')===page)a.classList.add('active');});}
 
-// ── PDF / Print repair ──
-// app.html defines its own handlers after this file loads. We therefore wrap
-// those handlers after DOMContentLoaded, changing only the access/credit gate.
+// ── PDF / Print access gate ──
 window.addEventListener('DOMContentLoaded',()=>{
   const originalPrint=window.printInvoice;
   const originalPDF=window.downloadPDF;
@@ -145,15 +164,16 @@ window.addEventListener('DOMContentLoaded',()=>{
           const{data,error}=await sb.auth.getSession();
           if(!error&&data?.session?.user){
             const a=data.session.user,m=a.user_metadata||{};
-            const authPlan=String(m.plan||'free').toLowerCase();
-            user={...(user||{}),id:a.id,email:a.email||user?.email||'',name:m.name||user?.name||a.email||'User',plan:(authPlan==='lifetime'||authPlan==='single')?authPlan:'free',singleCredits:Number(m.singleCredits??user?.singleCredits??3),unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(user?.unlockedInvoiceIds||[])};
+            const verified=m.planVerified===true&&m.paymentProvider==='polar';
+            const authPlan=verified&&['lifetime','single'].includes(String(m.plan||'').toLowerCase())?String(m.plan).toLowerCase():'free';
+            user={...(user||{}),id:a.id,email:a.email||user?.email||'',name:m.name||user?.name||a.email||'User',plan:authPlan,planVerified:verified,paymentProvider:verified?'polar':null,singleCredits:Number(m.singleCredits??user?.singleCredits??3),unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(user?.unlockedInvoiceIds||[])};
             saveCurrentUser(user);
           }
         }catch(e){console.warn('Auth refresh failed:',e);}
       }
       const invoiceId=typeof currentDraftId!=='undefined'?currentDraftId:('draft-'+Date.now());
       if(!hasInvoiceAccess(user,invoiceId)){
-        if(confirm('Your 3 free PDF credits have been used.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?'))location.href='payment.html';
+        if(confirm('Your free PDF credits have been used.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?'))location.href='payment.html';
         return;
       }
       if(String(user?.plan||'free').toLowerCase()!=='lifetime'&&!(user.unlockedInvoiceIds||[]).includes(invoiceId)){
@@ -171,15 +191,16 @@ window.addEventListener('DOMContentLoaded',()=>{
           const{data,error}=await sb.auth.getSession();
           if(!error&&data?.session?.user){
             const a=data.session.user,m=a.user_metadata||{};
-            const authPlan=String(m.plan||'free').toLowerCase();
-            user={...(user||{}),id:a.id,email:a.email||user?.email||'',name:m.name||user?.name||a.email||'User',plan:(authPlan==='lifetime'||authPlan==='single')?authPlan:'free',singleCredits:Number(m.singleCredits??user?.singleCredits??3),unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(user?.unlockedInvoiceIds||[])};
+            const verified=m.planVerified===true&&m.paymentProvider==='polar';
+            const authPlan=verified&&['lifetime','single'].includes(String(m.plan||'').toLowerCase())?String(m.plan).toLowerCase():'free';
+            user={...(user||{}),id:a.id,email:a.email||user?.email||'',name:m.name||user?.name||a.email||'User',plan:authPlan,planVerified:verified,paymentProvider:verified?'polar':null,singleCredits:Number(m.singleCredits??user?.singleCredits??3),unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(user?.unlockedInvoiceIds||[])};
             saveCurrentUser(user);
           }
         }catch(e){console.warn('Auth refresh failed:',e);}
       }
       const invoiceId=typeof currentDraftId!=='undefined'?currentDraftId:('draft-'+Date.now());
       if(!hasInvoiceAccess(user,invoiceId)){
-        if(confirm('Your 3 free PDF credits have been used.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?'))location.href='payment.html';
+        if(confirm('Your free PDF credits have been used.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?'))location.href='payment.html';
         return;
       }
       const alreadyUnlocked=String(user?.plan||'free').toLowerCase()==='lifetime'||(user.unlockedInvoiceIds||[]).includes(invoiceId);
@@ -192,7 +213,7 @@ window.addEventListener('DOMContentLoaded',()=>{
         doc.addImage(imgData,'PNG',0,0,pageW,pageH);
         const invNum=document.getElementById('invNumber').value||'invoice';doc.save(invNum+'.pdf');
         if(!alreadyUnlocked&&String(user?.plan||'free').toLowerCase()!=='lifetime'){
-          const r=await consumeInvoiceCredit(user,invoiceId);if(!r.ok){showToast(r.error||'Could not save free PDF credit','error');return;}
+          const r=await consumeInvoiceCredit(user,invoiceId);if(!r.ok){showToast(r.error||'Could not save free credit','error');return;}
         }
         const dl=parseInt(localStorage.getItem('fi_downloads')||'0')+1;localStorage.setItem('fi_downloads',dl);
         showToast('PDF downloaded! 🎉','success');
