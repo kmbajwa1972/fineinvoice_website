@@ -1,0 +1,45 @@
+name: FineInvoice 3D migration fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-3d-migration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: repair/professional-clean-2026-08-12
+          fetch-depth: 1
+
+      - name: Fix legacy credit migration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app.html')
+          s = p.read_text(encoding='utf-8')
+          old = "freePdfCredits:Number.isFinite(Number(m.freePdfCredits))?Math.max(0,Number(m.freePdfCredits)):3,paidSingleCredits:Math.max(0,Number(m.paidSingleCredits||0))"
+          new = "freePdfCredits:Number.isFinite(Number(m.freePdfCredits))?Math.max(0,Number(m.freePdfCredits)):Number.isFinite(Number(m.singleCredits))?Math.max(0,Number(m.singleCredits)):3,paidSingleCredits:Math.max(0,Number(m.paidSingleCredits||0))"
+          if old not in s:
+              raise SystemExit('Target migration expression not found; refusing to modify app.html')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify
+        run: |
+          grep -F "Number.isFinite(Number(m.singleCredits))?Math.max(0,Number(m.singleCredits)):3" app.html
+
+      - name: Commit app.html and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/fix-3d-migration.yml
+          git add app.html .github/workflows/fix-3d-migration.yml
+          git commit -m "Fix legacy free credit migration" || exit 0
+          git push origin HEAD:repair/professional-clean-2026-08-12
