@@ -1,0 +1,72 @@
+name: FineInvoice Step 3B
+
+on:
+  push:
+    branches:
+      - repair/professional-clean-2026-08-12
+    paths:
+      - '.github/workflows/repair-step3b.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: repair/professional-clean-2026-08-12
+          fetch-depth: 1
+
+      - name: Apply Invoice Builder UUID changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app.html')
+          s = p.read_text(encoding='utf-8')
+
+          old_script = '<script src="js/utils.js"></script>'
+          new_script = '<script src="js/utils.js"></script><script src="js/entitlements.js"></script>'
+          if new_script not in s:
+              if old_script not in s:
+                  raise SystemExit('utils.js script tag not found')
+              s = s.replace(old_script, new_script, 1)
+
+          old_id = "const urlParams=new URLSearchParams(window.location.search),invoiceIdFromUrl=urlParams.get('invoice'),currentDraftId=invoiceIdFromUrl||('DRAFT-'+Date.now());"
+          new_id = "const urlParams=new URLSearchParams(window.location.search),invoiceIdFromUrl=urlParams.get('invoice');let currentDraftId=invoiceIdFromUrl||crypto.randomUUID();"
+          if old_id in s:
+              s = s.replace(old_id, new_id, 1)
+          elif "currentDraftId=invoiceIdFromUrl||crypto.randomUUID();" not in s:
+              raise SystemExit('currentDraftId declaration not found')
+
+          old_load = "function loadInvoiceById(id){const invoices=getInvoices(),inv=invoices.find(i=>i.id===id)||invoices[invoices.length-1];if(!inv)return false;"
+          new_load = "function loadInvoiceById(id){const invoices=getInvoices(),inv=invoices.find(i=>i.id===id)||invoices[invoices.length-1];if(!inv)return false;currentDraftId=inv.entitlementId||inv.id||currentDraftId;"
+          if old_load in s:
+              s = s.replace(old_load, new_load, 1)
+
+          old_inv = 'inv={id:currentDraftId,company'
+          new_inv = 'inv={id:currentDraftId,entitlementId:currentDraftId,company'
+          if old_inv in s:
+              s = s.replace(old_inv, new_inv, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify migration
+        run: |
+          grep -q 'js/entitlements.js' app.html
+          ! grep -q "DRAFT-'+'Date.now" app.html
+          grep -q 'crypto.randomUUID()' app.html
+          grep -q 'entitlementId:currentDraftId' app.html
+
+      - name: Commit targeted change and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.html
+          git rm .github/workflows/repair-step3b.yml
+          git commit -m 'Complete Step 3B permanent invoice UUID integration'
+          git push origin repair/professional-clean-2026-08-12
