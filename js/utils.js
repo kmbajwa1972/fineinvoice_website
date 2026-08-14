@@ -33,6 +33,53 @@ function saveCustomers(d){localStorage.setItem('fi_customers',JSON.stringify(Arr
 function saveInvoices(d){localStorage.setItem('fi_invoices',JSON.stringify(Array.isArray(d)?d:[]))}
 function saveLicense(d){localStorage.setItem('fi_license',JSON.stringify(d&&typeof d==='object'?d:{}))}
 function saveCurrentUser(u){if(u)localStorage.setItem('fi_current_user',JSON.stringify(normalizePlanUser(u)));else localStorage.removeItem('fi_current_user')}
+\
+function applyRemoteEntitlementUser(remoteUser){
+  if(!remoteUser)return false;
+  const meta=remoteUser.user_metadata||{};
+  const previous=getCurrentUser()||{};
+  const plan=['free','single','lifetime'].includes(String(meta.plan||previous.plan||'free').toLowerCase())?String(meta.plan||previous.plan||'free').toLowerCase():'free';
+  const freeRaw=meta.freePdfCredits??previous.freePdfCredits??meta.singleCredits??previous.singleCredits??3;
+  const paidRaw=meta.paidSingleCredits??previous.paidSingleCredits??0;
+  const free=Math.max(0,Number(freeRaw)||0);
+  const paid=Math.max(0,Number(paidRaw)||0);
+  const next={...previous,id:remoteUser.id,email:remoteUser.email||previous.email||'',name:meta.name||previous.name||remoteUser.email||'User',plan,planVerified:meta.planVerified===true,paymentProvider:meta.paymentProvider||previous.paymentProvider||null,plan_activated_at:meta.plan_activated_at||previous.plan_activated_at||null,freePdfCredits:free,paidSingleCredits:paid,singleCredits:free,unlockedInvoiceIds:Array.isArray(meta.unlockedInvoiceIds)?[...new Set(meta.unlockedInvoiceIds.map(String))]:(previous.unlockedInvoiceIds||[]),whatsapp:meta.whatsapp||previous.whatsapp||null};
+  const changed=String(previous.plan||'free')!==plan||Number(previous.freePdfCredits??previous.singleCredits??3)!==free||Number(previous.paidSingleCredits||0)!==paid||JSON.stringify(previous.unlockedInvoiceIds||[])!==JSON.stringify(next.unlockedInvoiceIds||[]);
+  saveCurrentUser(next);
+  if(changed){
+    window.dispatchEvent(new CustomEvent('fineinvoice:entitlement-updated',{detail:{user:next,plan,freePdfCredits:free,paidSingleCredits:paid}}));
+  }
+  return changed;
+}
+
+let fineInvoiceEntitlementTimer=null;
+async function syncEntitlementsNow(){
+  const sb=getSupabase();
+  if(!sb)return false;
+  try{
+    const{data,error}=await sb.auth.getUser();
+    if(error||!data?.user)return false;
+    return applyRemoteEntitlementUser(data.user);
+  }catch(error){
+    console.warn('FineInvoice entitlement sync failed:',error);
+    return false;
+  }
+}
+
+function startEntitlementSync(){
+  if(window.__fineInvoiceEntitlementSyncStarted)return;
+  window.__fineInvoiceEntitlementSyncStarted=true;
+  syncEntitlementsNow();
+  fineInvoiceEntitlementTimer=setInterval(syncEntitlementsNow,2000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncEntitlementsNow()});
+  window.addEventListener('focus',syncEntitlementsNow);
+}
+
+function stopEntitlementSync(){
+  if(fineInvoiceEntitlementTimer){clearInterval(fineInvoiceEntitlementTimer);fineInvoiceEntitlementTimer=null;}
+  window.__fineInvoiceEntitlementSyncStarted=false;
+}
+
 function requireAuth(redirect='signin.html'){const user=getCurrentUser();if(!user){window.location.href=redirect;return null}return user}
 function requirePlan(user,minPlan,featureName){const order={free:0,single:1,lifetime:2};const userLevel=order[String(user?.plan||'free').toLowerCase()]??0;const required=order[minPlan]??1;if(userLevel>=required)return true;const label=minPlan==='lifetime'?'Lifetime ($25)':'Single ($2) or higher';showToast(`${featureName} requires ${label} plan. Upgrade in Billing.`,'error',5000);return false}
 
@@ -42,7 +89,7 @@ const EMAILJS_PUBLIC='ypfhAplPP-LZxq9zy';
 async function sendInvoiceByEmail(toEmail,toName,fromName,invNumber,pdfBase64){if(!window.emailjs)return{error:'EmailJS not loaded'};try{return{data:await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:toEmail,to_name:toName,from_name:fromName,inv_number:invNumber,pdf_base64:pdfBase64||''},EMAILJS_PUBLIC)}}catch(err){return{error:err}}}
 function logout(){localStorage.removeItem('fi_current_user');const sb=getSupabase();if(sb)sb.auth.signOut().finally(()=>{window.location.href='index.html'});else window.location.href='index.html'}
 function showToast(msg,type='info',duration=3000){let c=document.getElementById('toast-container');if(!c){c=document.createElement('div');c.id='toast-container';c.className='toast-container';document.body.appendChild(c)}const t=document.createElement('div'),icons={success:'✅',error:'❌',info:'💡'};t.className=`toast ${type}`;const icon=document.createElement('span');icon.textContent=icons[type]||'💡';const text=document.createElement('span');text.textContent=String(msg??'');t.append(icon,text);c.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(120%)';t.style.transition='.3s';setTimeout(()=>t.remove(),300)},duration)}
-function renderUserChip(containerId){const user=getCurrentUser(),el=document.getElementById(containerId);if(!el||!user)return;const initials=(user.name||user.email||'U').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);const plan=String(user.plan||'free').toUpperCase();const planColor=plan==='LIFETIME'?'#B76E00':plan==='SINGLE'?'#00C48C':'#6C3FF5';const planBg=plan==='LIFETIME'?'rgba(255,181,0,.15)':plan==='SINGLE'?'rgba(0,196,140,.15)':'rgba(108,63,245,.15)';el.innerHTML=`<div class="user-chip"><div class="avatar">${escapeHtml(initials)}</div><span>${escapeHtml(user.name||user.email||'User')}</span></div><span class="badge" style="background:${planBg};color:${planColor};border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700">${plan}</span>`}
+function renderUserChip(containerId){const user=getCurrentUser(),el=document.getElementById(containerId);if(!el||!user)return;const initials=(user.name||user.email||'U').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);const plan=String(user.plan||'free').toUpperCase();const planColor=plan==='LIFETIME'?'#B76E00':plan==='SINGLE'?'#00C48C':'#6C3FF5';const planBg=plan==='LIFETIME'?'rgba(255,181,0,.15)':plan==='SINGLE'?'rgba(0,196,140,.15)':'rgba(108,63,245,.15)';el.innerHTML=`<div class="user-chip"><div class="avatar">${escapeHtml(initials)}</div><span>${escapeHtml(user.name||user.email||'User')}</span></div><span class="badge" style="background:${planBg};color:${planColor};border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700">${plan}</span>`;if(!el.dataset.fineInvoiceEntitlementListener){el.dataset.fineInvoiceEntitlementListener='1';window.addEventListener('fineinvoice:entitlement-updated',()=>renderUserChip(containerId))}}
 async function submitPaymentSubmission(sub){const sb=getSupabase();if(!sb)return{error:{message:'Database unavailable'}};const{error}=await sb.from('payment_submissions').insert([sub]);return{error}}
 async function checkUnlockCode(code){const sb=getSupabase();if(!sb)return{error:{message:'Database unavailable'}};const{data,error}=await sb.rpc('redeem_unlock_code',{p_code:code});if(error)return{error};return{data:Array.isArray(data)?data[0]:data}}
 async function markCodeUsed(id,code){const sb=getSupabase();if(sb)await sb.rpc('mark_unlock_code_used',{p_id:id,p_code:code})}
@@ -190,3 +237,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     };
   }
 });
+
+
+window.addEventListener('DOMContentLoaded',startEntitlementSync);

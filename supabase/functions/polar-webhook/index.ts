@@ -131,7 +131,9 @@ async function activatePaidOrder(order: any) {
     polarProductId: productId,
     polarOrderId: orderId,
     paidAt: order?.created_at ?? new Date().toISOString(),
-    singleCredits: plan === 'single' ? 1 : 0,
+    freePdfCredits: Math.max(0, Number(metadata.freePdfCredits ?? metadata.singleCredits ?? 3) || 0),
+    paidSingleCredits: plan === 'single' ? Math.max(0, Number(metadata.paidSingleCredits ?? 0) || 0) + 1 : 0,
+    singleCredits: Math.max(0, Number(metadata.freePdfCredits ?? metadata.singleCredits ?? 3) || 0),
     unlockedInvoiceIds: Array.isArray(metadata.unlockedInvoiceIds)
       ? metadata.unlockedInvoiceIds
       : [],
