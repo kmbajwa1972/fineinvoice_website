@@ -215,9 +215,20 @@ window.addEventListener('DOMContentLoaded',()=>{
         const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',width:el.scrollWidth,height:el.scrollHeight,windowWidth:Math.max(document.documentElement.clientWidth,el.scrollWidth),windowHeight:Math.max(window.innerHeight,el.scrollHeight),scrollX:0,scrollY:-window.scrollY});
         el.style.height=previousHeight;el.style.overflow=previousOverflow;
         const{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),imgH=(canvas.height*pageW)/canvas.width;
+        const docRect=el.getBoundingClientRect();
+        const totalsEl=el.querySelector('.inv-totals');
+        const footerEl=el.querySelector('.inv-footer');
+        const pxToMm=pageW/Math.max(1,el.scrollWidth);
+        const totalsTopMm=totalsEl?Math.max(0,(totalsEl.getBoundingClientRect().top-docRect.top)*pxToMm):null;
+        const totalsBottomMm=footerEl?Math.max(0,(footerEl.getBoundingClientRect().bottom-docRect.top)*pxToMm):(totalsEl?Math.max(0,(totalsEl.getBoundingClientRect().bottom-docRect.top)*pxToMm):null);
         let renderedHeight=0;
         while(renderedHeight<imgH-0.01){
-          const sliceHeight=Math.min(pageH,imgH-renderedHeight);
+          let sliceHeight=Math.min(pageH,imgH-renderedHeight);
+          const pageBottom=renderedHeight+sliceHeight;
+          if(totalsTopMm!==null&&totalsBottomMm!==null&&totalsTopMm>renderedHeight+1&&totalsTopMm<pageBottom-1&&totalsBottomMm>pageBottom){
+            const beforeTotals=totalsTopMm-renderedHeight;
+            if(beforeTotals>1)sliceHeight=beforeTotals;
+          }
           const sourceY=Math.floor((renderedHeight*canvas.width)/pageW);
           const sourceHeight=Math.max(1,Math.min(canvas.height-sourceY,Math.floor((sliceHeight*canvas.width)/pageW)));
           const sliceCanvas=document.createElement('canvas');sliceCanvas.width=canvas.width;sliceCanvas.height=sourceHeight;
