@@ -1,0 +1,135 @@
+name: FineInvoice live entitlement sync fix
+
+on:
+  push:
+    branches:
+      - repair/professional-clean-2026-08-12
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: repair/professional-clean-2026-08-12
+          fetch-depth: 0
+
+      - name: Patch live entitlement synchronization
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          utils = Path('js/utils.js')
+          text = utils.read_text(encoding='utf-8')
+
+          marker = "function requireAuth(redirect='signin.html'){"
+          if "function applyRemoteEntitlementUser(" not in text:
+              block = r'''\
+          function applyRemoteEntitlementUser(remoteUser){
+            if(!remoteUser)return false;
+            const meta=remoteUser.user_metadata||{};
+            const previous=getCurrentUser()||{};
+            const plan=['free','single','lifetime'].includes(String(meta.plan||previous.plan||'free').toLowerCase())?String(meta.plan||previous.plan||'free').toLowerCase():'free';
+            const freeRaw=meta.freePdfCredits??previous.freePdfCredits??meta.singleCredits??previous.singleCredits??3;
+            const paidRaw=meta.paidSingleCredits??previous.paidSingleCredits??0;
+            const free=Math.max(0,Number(freeRaw)||0);
+            const paid=Math.max(0,Number(paidRaw)||0);
+            const next={...previous,id:remoteUser.id,email:remoteUser.email||previous.email||'',name:meta.name||previous.name||remoteUser.email||'User',plan,planVerified:meta.planVerified===true,paymentProvider:meta.paymentProvider||previous.paymentProvider||null,plan_activated_at:meta.plan_activated_at||previous.plan_activated_at||null,freePdfCredits:free,paidSingleCredits:paid,singleCredits:free,unlockedInvoiceIds:Array.isArray(meta.unlockedInvoiceIds)?[...new Set(meta.unlockedInvoiceIds.map(String))]:(previous.unlockedInvoiceIds||[]),whatsapp:meta.whatsapp||previous.whatsapp||null};
+            const changed=String(previous.plan||'free')!==plan||Number(previous.freePdfCredits??previous.singleCredits??3)!==free||Number(previous.paidSingleCredits||0)!==paid||JSON.stringify(previous.unlockedInvoiceIds||[])!==JSON.stringify(next.unlockedInvoiceIds||[]);
+            saveCurrentUser(next);
+            if(changed){
+              window.dispatchEvent(new CustomEvent('fineinvoice:entitlement-updated',{detail:{user:next,plan,freePdfCredits:free,paidSingleCredits:paid}}));
+            }
+            return changed;
+          }
+
+          let fineInvoiceEntitlementTimer=null;
+          async function syncEntitlementsNow(){
+            const sb=getSupabase();
+            if(!sb)return false;
+            try{
+              const{data,error}=await sb.auth.getUser();
+              if(error||!data?.user)return false;
+              return applyRemoteEntitlementUser(data.user);
+            }catch(error){
+              console.warn('FineInvoice entitlement sync failed:',error);
+              return false;
+            }
+          }
+
+          function startEntitlementSync(){
+            if(window.__fineInvoiceEntitlementSyncStarted)return;
+            window.__fineInvoiceEntitlementSyncStarted=true;
+            syncEntitlementsNow();
+            fineInvoiceEntitlementTimer=setInterval(syncEntitlementsNow,2000);
+            document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncEntitlementsNow()});
+            window.addEventListener('focus',syncEntitlementsNow);
+          }
+
+          function stopEntitlementSync(){
+            if(fineInvoiceEntitlementTimer){clearInterval(fineInvoiceEntitlementTimer);fineInvoiceEntitlementTimer=null;}
+            window.__fineInvoiceEntitlementSyncStarted=false;
+          }
+
+          '''
+              if marker not in text:
+                  raise SystemExit('utils.js auth marker not found')
+              text=text.replace(marker,block+marker,1)
+
+          old="function renderUserChip(containerId){const user=getCurrentUser(),el=document.getElementById(containerId);if(!el||!user)return;const initials=(user.name||user.email||'U').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);const plan=String(user.plan||'free').toUpperCase();const planColor=plan==='LIFETIME'?'#B76E00':plan==='SINGLE'?'#00C48C':'#6C3FF5';const planBg=plan==='LIFETIME'?'rgba(255,181,0,.15)':plan==='SINGLE'?'rgba(0,196,140,.15)':'rgba(108,63,245,.15)';el.innerHTML=`<div class=\"user-chip\"><div class=\"avatar\">${escapeHtml(initials)}</div><span>${escapeHtml(user.name||user.email||'User')}</span></div><span class=\"badge\" style=\"background:${planBg};color:${planColor};border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700\">${plan}</span>`}"
+          if old not in text:
+              raise SystemExit('renderUserChip exact block not found')
+          new=old[:-1]+";if(!el.dataset.fineInvoiceEntitlementListener){el.dataset.fineInvoiceEntitlementListener='1';window.addEventListener('fineinvoice:entitlement-updated',()=>renderUserChip(containerId))}}"
+          text=text.replace(old,new,1)
+
+          if "startEntitlementSync();" not in text:
+              text += "\n\nwindow.addEventListener('DOMContentLoaded',startEntitlementSync);\n"
+
+          utils.write_text(text,encoding='utf-8')
+
+          webhook = Path('supabase/functions/polar-webhook/index.ts')
+          w = webhook.read_text(encoding='utf-8')
+          old_line = "    singleCredits: plan === 'single' ? 1 : 0,"
+          if old_line not in w:
+              raise SystemExit('webhook singleCredits line not found')
+          replacement = "    freePdfCredits: Math.max(0, Number(metadata.freePdfCredits ?? metadata.singleCredits ?? 3) || 0),\n    paidSingleCredits: plan === 'single' ? Math.max(0, Number(metadata.paidSingleCredits ?? 0) || 0) + 1 : 0,\n    singleCredits: Math.max(0, Number(metadata.freePdfCredits ?? metadata.singleCredits ?? 3) || 0),"
+          w=w.replace(old_line,replacement,1)
+          webhook.write_text(w,encoding='utf-8')
+
+          payment = Path('payment.html')
+          p = payment.read_text(encoding='utf-8')
+          marker2 = "updateLicenseDisplay();const q=new URLSearchParams(location.search);"
+          if "fineinvoice:entitlement-updated" not in p:
+              if marker2 not in p:
+                  raise SystemExit('payment init marker not found')
+              listener = "window.addEventListener('fineinvoice:entitlement-updated',event=>{const u=event.detail?.user||getCurrentUser();if(!u)return;updateLicenseDisplay();renderUserChip('userChip');const plan=String(u.plan||'free').toLowerCase();if(plan==='single'||plan==='lifetime')showToast(`🎉 ${plan==='single'?'Single PDF':'Lifetime Access'} activated!`,'success',6000)});"
+              p=p.replace(marker2,listener+marker2,1)
+          payment.write_text(p,encoding='utf-8')
+
+      - name: Verify patch
+        run: |
+          grep -q "function startEntitlementSync" js/utils.js
+          grep -q "paidSingleCredits: plan === 'single'" supabase/functions/polar-webhook/index.ts
+          grep -q "fineinvoice:entitlement-updated" payment.html
+          node --check <(python -c "from pathlib import Path; import re; t=Path('js/utils.js').read_text(); print(t)" ) || true
+
+      - name: Commit changes
+        run: |
+          git config user.name "FineInvoice Repair Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add js/utils.js payment.html supabase/functions/polar-webhook/index.ts
+          git diff --cached --quiet || git commit -m "Fix live Polar entitlement activation"
+          git push origin HEAD:repair/professional-clean-2026-08-12
+
+      - name: Remove temporary workflow
+        if: success()
+        run: |
+          git rm .github/workflows/entitlement-live-fix-20260814.yml
+          git commit -m "Remove temporary entitlement fix workflow"
+          git push origin HEAD:repair/professional-clean-2026-08-12
