@@ -33,7 +33,7 @@ function saveCustomers(d){localStorage.setItem('fi_customers',JSON.stringify(Arr
 function saveInvoices(d){localStorage.setItem('fi_invoices',JSON.stringify(Array.isArray(d)?d:[]))}
 function saveLicense(d){localStorage.setItem('fi_license',JSON.stringify(d&&typeof d==='object'?d:{}))}
 function saveCurrentUser(u){if(u)localStorage.setItem('fi_current_user',JSON.stringify(normalizePlanUser(u)));else localStorage.removeItem('fi_current_user')}
-\
+
 function applyRemoteEntitlementUser(remoteUser){
   if(!remoteUser)return false;
   const meta=remoteUser.user_metadata||{};
