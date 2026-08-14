@@ -21,7 +21,7 @@ function normalizePlanUser(user){
   const plan=String(user.plan||'free').toLowerCase();
   if(!['free','single','lifetime'].includes(plan)) user.plan='free';
   user.plan=plan;
-  user.freePdfCredits=Number.isFinite(Number(user.freePdfCredits))?Math.max(0,Number(user.freePdfCredits)):(Number.isFinite(Number(user.singleCredits))?Math.max(0,Number(user.singleCredits)):3);
+  user.freePdfCredits=Number.isFinite(Number(user.freePdfCredits))?Math.max(0,Number(user.freePdfCredits)):(Number.isFinite(Number(user.singleCredits))?Math.max(0,Number(user.singleCredits)):(plan==='free'?3:0));
   user.paidSingleCredits=Math.max(0,Number(user.paidSingleCredits||0));
   user.unlockedInvoiceIds=Array.isArray(user.unlockedInvoiceIds)?[...new Set(user.unlockedInvoiceIds.map(String))]:[];
   user.singleCredits=user.freePdfCredits;
@@ -39,7 +39,7 @@ function applyRemoteEntitlementUser(remoteUser){
   const meta=remoteUser.user_metadata||{};
   const previous=getCurrentUser()||{};
   const plan=['free','single','lifetime'].includes(String(meta.plan||previous.plan||'free').toLowerCase())?String(meta.plan||previous.plan||'free').toLowerCase():'free';
-  const freeRaw=meta.freePdfCredits??previous.freePdfCredits??meta.singleCredits??previous.singleCredits??3;
+  const freeRaw=meta.freePdfCredits??previous.freePdfCredits??meta.singleCredits??previous.singleCredits??(plan==='free'?3:0);
   const paidRaw=meta.paidSingleCredits??previous.paidSingleCredits??0;
   const free=Math.max(0,Number(freeRaw)||0);
   const paid=Math.max(0,Number(paidRaw)||0);
@@ -172,7 +172,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(auth.user){
       const a=auth.user,m=a.user_metadata||{};
       const plan=String(m.plan||user?.plan||'free').toLowerCase();
-      user={...(user||{}),id:a.id,email:a.email||user?.email||'',name:m.name||user?.name||a.email||'User',plan:['free','single','lifetime'].includes(plan)?plan:'free',planVerified:m.planVerified===true, paymentProvider:m.paymentProvider||null,freePdfCredits:Number(m.freePdfCredits??m.singleCredits??user?.freePdfCredits??user?.singleCredits??3),paidSingleCredits:Number(m.paidSingleCredits??user?.paidSingleCredits??0),singleCredits:Number(m.freePdfCredits??m.singleCredits??user?.freePdfCredits??user?.singleCredits??3),unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(user?.unlockedInvoiceIds||[])};
+      user={...(user||{}),id:a.id,email:a.email||user?.email||'',name:m.name||user?.name||a.email||'User',plan:['free','single','lifetime'].includes(plan)?plan:'free',planVerified:m.planVerified===true, paymentProvider:m.paymentProvider||null,freePdfCredits:Number(m.freePdfCredits??m.singleCredits??user?.freePdfCredits??user?.singleCredits??(plan==='free'?3:0)),paidSingleCredits:Number(m.paidSingleCredits??user?.paidSingleCredits??0),singleCredits:Number(m.freePdfCredits??m.singleCredits??user?.freePdfCredits??user?.singleCredits??(plan==='free'?3:0)),unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(user?.unlockedInvoiceIds||[])};
       saveCurrentUser(user);
       return{user,error:null};
     }
@@ -239,7 +239,7 @@ window.addEventListener('DOMContentLoaded',()=>{
           doc.addImage(sliceCanvas.toDataURL('image/png'),'PNG',0,0,pageW,(sourceHeight*pageW)/canvas.width);
           renderedHeight+=sliceHeight;
         }
-        const invNum=document.getElementById('invNumber').value||'invoice';doc.save(invNum+'.pdf');
+        const invNum=document.getElementById('invNumber').value||'invoice';doc.save(invNum+'.pdf';
         if(!alreadyUnlocked&&String(user.plan||'free').toLowerCase()!=='lifetime'){
           const r=await consumeInvoiceCredit(user,invoiceId);if(!r.ok){showToast(r.error||'Could not save PDF credit','error');return;}
         }
