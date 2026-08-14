@@ -1,0 +1,66 @@
+name: FineInvoice PDF totals page-break fix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: repair/professional-clean-2026-08-12
+          fetch-depth: 0
+
+      - name: Patch PDF pagination
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('js/utils.js')
+          s=p.read_text(encoding='utf-8')
+          old="""        const{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),imgH=(canvas.height*pageW)/canvas.width;
+        let renderedHeight=0;
+        while(renderedHeight<imgH-0.01){
+          const sliceHeight=Math.min(pageH,imgH-renderedHeight);"""
+          new="""        const{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),imgH=(canvas.height*pageW)/canvas.width;
+        const docRect=el.getBoundingClientRect();
+        const totalsEl=el.querySelector('.inv-totals');
+        const footerEl=el.querySelector('.inv-footer');
+        const pxToMm=pageW/Math.max(1,el.scrollWidth);
+        const totalsTopMm=totalsEl?Math.max(0,(totalsEl.getBoundingClientRect().top-docRect.top)*pxToMm):null;
+        const totalsBottomMm=footerEl?Math.max(0,(footerEl.getBoundingClientRect().bottom-docRect.top)*pxToMm):(totalsEl?Math.max(0,(totalsEl.getBoundingClientRect().bottom-docRect.top)*pxToMm):null);
+        let renderedHeight=0;
+        while(renderedHeight<imgH-0.01){
+          let sliceHeight=Math.min(pageH,imgH-renderedHeight);
+          const pageBottom=renderedHeight+sliceHeight;
+          if(totalsTopMm!==null&&totalsBottomMm!==null&&totalsTopMm>renderedHeight+1&&totalsTopMm<pageBottom-1&&totalsBottomMm>pageBottom){
+            const beforeTotals=totalsTopMm-renderedHeight;
+            if(beforeTotals>1)sliceHeight=beforeTotals;
+          }"""
+          if old not in s:
+            raise SystemExit('PDF pagination block not found')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+
+      - name: Verify
+        run: |
+          grep -q "totalsTopMm" js/utils.js
+          grep -q "totalsBottomMm" js/utils.js
+
+      - name: Commit
+        run: |
+          git config user.name "FineInvoice Repair Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add js/utils.js
+          git commit -m "Keep invoice totals together in PDF pages"
+          git push origin HEAD:repair/professional-clean-2026-08-12
+
+      - name: Remove temporary workflow
+        if: success()
+        run: |
+          git rm .github/workflows/pdf-totals-pagebreak-20260814.yml
+          git commit -m "Remove temporary PDF pagination workflow"
+          git push origin HEAD:repair/professional-clean-2026-08-12
