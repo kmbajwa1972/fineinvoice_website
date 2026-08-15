@@ -18,13 +18,12 @@ function json(data: unknown, status = 200) {
   })
 }
 
-function normaliseEmail(value: unknown) {
+function emailOf(value: unknown) {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 
 function planForProduct(id: unknown) {
   const value = String(id ?? '').trim().toLowerCase()
-  if (!value) return null
   if (value === SINGLE_PRODUCT_ID.toLowerCase()) return 'single'
   if (value === LIFETIME_PRODUCT_ID.toLowerCase()) return 'lifetime'
   return null
@@ -32,24 +31,19 @@ function planForProduct(id: unknown) {
 
 function planFromName(value: unknown) {
   const name = String(value ?? '').trim().toLowerCase()
-  if (!name) return null
   if (name.includes('lifetime')) return 'lifetime'
   if (name.includes('single') || name.includes('pdf')) return 'single'
   return null
 }
 
 async function findUserByEmail(email: unknown) {
-  const target = normaliseEmail(email)
+  const target = emailOf(email)
   if (!target) return null
 
   for (let page = 1; page <= 20; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({
-      page,
-      perPage: 1000
-    })
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
     if (error) throw error
-
-    const user = data.users.find((u) => normaliseEmail(u.email) === target)
+    const user = data.users.find((u) => emailOf(u.email) === target)
     if (user) return user
     if (data.users.length < 1000) break
   }
@@ -60,52 +54,29 @@ async function findUserByEmail(email: unknown) {
 async function sendWhatsApp(number: unknown, message: string) {
   const token = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
   const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
-
-  if (!token || !phoneNumberId || typeof number !== 'string' || !number.trim()) {
-    return { skipped: true }
-  }
+  if (!token || !phoneNumberId || typeof number !== 'string' || !number.trim()) return { skipped: true }
 
   const recipient = number.replace(/\D/g, '')
   if (!recipient) return { skipped: true }
 
-  const response = await fetch(
-    `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: recipient,
-        type: 'text',
-        text: { preview_url: false, body: message }
-      })
-    }
-  )
+  const response = await fetch(`https://graph.facebook.com/v23.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: recipient,
+      type: 'text',
+      text: { preview_url: false, body: message }
+    })
+  })
 
-  if (!response.ok) {
-    console.error('[WhatsApp] delivery failed:', response.status, await response.text())
-  }
-
+  if (!response.ok) console.error('[WhatsApp] delivery failed:', response.status, await response.text())
   return { skipped: false, ok: response.ok }
 }
 
-/**
- * Fulfil a Polar order only after Polar says the order is paid.
- *
- * Polar can deliver `order.created` with paid=true, and `order.paid` is
- * the definitive fulfilment event. We therefore use the same idempotent
- * fulfilment path for both events, while still refusing pending orders.
- */
 async function activatePaidOrder(order: any, eventType: string) {
   const productId = order?.product_id ?? order?.product?.id
-  const productName =
-    order?.product?.name ??
-    order?.product?.title ??
-    order?.product_name ??
-    order?.product_title
+  const productName = order?.product?.name ?? order?.product?.title ?? order?.product_name ?? order?.product_title
   const email = order?.customer_email ?? order?.customer?.email
   const polarCustomerId = order?.customer_id ?? order?.customer?.id ?? null
   const orderId = String(order?.id ?? '')
@@ -119,12 +90,10 @@ async function activatePaidOrder(order: any, eventType: string) {
   }
 
   const metadata = user.user_metadata ?? {}
-  const plan =
+  const resolvedPlan =
     planForProduct(productId) ??
     planFromName(productName) ??
-    (['single', 'lifetime'].includes(
-      String(metadata.pendingPolarPlan ?? '').toLowerCase()
-    )
+    (['single', 'lifetime'].includes(String(metadata.pendingPolarPlan ?? '').toLowerCase())
       ? String(metadata.pendingPolarPlan).toLowerCase()
       : null)
 
@@ -134,29 +103,18 @@ async function activatePaidOrder(order: any, eventType: string) {
     email: user.email,
     productId,
     productName,
-    pendingPolarPlan: metadata.pendingPolarPlan ?? null,
-    resolvedPlan: plan,
+    resolvedPlan,
     paid,
     status
   })
 
-  if (!plan) {
-    console.error('[Polar] Could not resolve paid product to FineInvoice plan:', {
-      productId,
-      productName,
-      orderId
-    })
+  if (!resolvedPlan) {
+    console.error('[Polar] Could not resolve product to FineInvoice plan:', { productId, productName, orderId })
     return
   }
 
-  // Never grant paid access to a pending/unpaid order.
   if (!paid && status !== 'paid') {
-    console.log('[Polar] Order is not paid yet; entitlement not granted:', {
-      eventType,
-      orderId,
-      status,
-      paid
-    })
+    console.log('[Polar] Order is not paid yet; entitlement not granted:', { eventType, orderId, status, paid })
     return
   }
 
@@ -164,27 +122,41 @@ async function activatePaidOrder(order: any, eventType: string) {
     ? metadata.polarProcessedOrderIds.map(String)
     : []
 
-  // Idempotency: the same Polar order must never grant credits twice.
   if (orderId && processed.includes(orderId)) {
     console.log('[Polar] Duplicate order ignored:', orderId)
     return
   }
 
-  const currentPaidCredits = Math.max(
-    0,
-    Number(metadata.paidSingleCredits ?? 0) || 0
-  )
+  const currentPlan = String(metadata.plan ?? 'free').toLowerCase()
+  const currentFree = Math.max(0, Number(metadata.freePdfCredits ?? metadata.singleCredits ?? 3) || 0)
+  const currentPaid = Math.max(0, Number(metadata.paidSingleCredits ?? 0) || 0)
 
-  const baseFree = Math.max(
-    0,
-    Number(metadata.freePdfCredits ?? metadata.singleCredits ?? 3) || 0
-  )
+  // A Single purchase is an additional PDF credit. Preserve any unused free
+  // credits by folding them into the paid balance when the account becomes
+  // Single, so no previously earned free PDFs disappear.
+  let plan = resolvedPlan
+  let freePdfCredits = currentFree
+  let paidSingleCredits = currentPaid
 
-  const nextPaid = plan === 'single' ? Math.max(1, currentPaidCredits) : 0
-  const nextProcessed = orderId
-    ? [...processed.slice(-49), orderId]
-    : processed
+  if (currentPlan === 'lifetime' && resolvedPlan === 'single') {
+    // Never downgrade an already-paid Lifetime account because of a later
+    // Single checkout. The Single order is acknowledged but grants no new
+    // entitlement because Lifetime is already unlimited.
+    plan = 'lifetime'
+    freePdfCredits = 0
+    paidSingleCredits = 0
+  } else if (resolvedPlan === 'lifetime') {
+    plan = 'lifetime'
+    freePdfCredits = 0
+    paidSingleCredits = 0
+  } else {
+    plan = 'single'
+    paidSingleCredits = currentFree + currentPaid + 1
+    freePdfCredits = 0
+  }
 
+  const nextProcessed = orderId ? [...processed.slice(-49), orderId] : processed
+  const activatedAt = new Date().toISOString()
   const nextMetadata = {
     ...metadata,
     plan,
@@ -193,11 +165,12 @@ async function activatePaidOrder(order: any, eventType: string) {
     polarCustomerId,
     polarProductId: productId ?? metadata.polarProductId ?? null,
     polarOrderId: orderId || metadata.polarOrderId || null,
-    paidAt: order?.created_at ?? metadata.paidAt ?? new Date().toISOString(),
-    plan_activated_at: new Date().toISOString(),
-    freePdfCredits: baseFree,
-    paidSingleCredits: nextPaid,
-    singleCredits: baseFree,
+    paidAt: order?.created_at ?? metadata.paidAt ?? activatedAt,
+    plan_activated_at: activatedAt,
+    freePdfCredits,
+    paidSingleCredits,
+    // Backward-compatible field used by older FineInvoice builds.
+    singleCredits: plan === 'single' ? paidSingleCredits : freePdfCredits,
     unlockedInvoiceIds: Array.isArray(metadata.unlockedInvoiceIds)
       ? metadata.unlockedInvoiceIds
       : [],
@@ -209,50 +182,40 @@ async function activatePaidOrder(order: any, eventType: string) {
   const { error } = await supabase.auth.admin.updateUserById(user.id, {
     user_metadata: nextMetadata
   })
-
   if (error) throw error
 
   console.log('[Polar] Activated entitlement', {
     userId: user.id,
     email: user.email,
     plan,
-    paidSingleCredits: nextPaid,
+    freePdfCredits,
+    paidSingleCredits,
+    singleCredits: nextMetadata.singleCredits,
     orderId,
     eventType
   })
 
   const name = metadata.name || user.email || 'there'
-  const message =
-    plan === 'lifetime'
-      ? `Hi ${name}! 🎉 Your FineInvoice Lifetime Access payment has been confirmed. Your account is now active with unlimited PDF downloads.`
-      : `Hi ${name}! 🎉 Your FineInvoice Single PDF payment has been confirmed. Your account now has 1 paid PDF download.`
+  const message = plan === 'lifetime'
+    ? `Hi ${name}! 🎉 Your FineInvoice Lifetime Access payment has been confirmed. Your account is now active with unlimited PDF downloads.`
+    : `Hi ${name}! 🎉 Your FineInvoice Single PDF payment has been confirmed. Your account now has ${paidSingleCredits} PDF credit(s) available.`
 
   await sendWhatsApp(metadata.whatsapp, message)
 }
 
 async function handleRefund(order: any) {
   const productId = order?.product_id ?? order?.product?.id
-  const plan =
-    planForProduct(productId) ??
-    planFromName(order?.product?.name ?? order?.product?.title)
-
+  const plan = planForProduct(productId) ?? planFromName(order?.product?.name ?? order?.product?.title)
   if (!plan) return
 
-  const email = order?.customer_email ?? order?.customer?.email
-  const user = await findUserByEmail(email)
+  const user = await findUserByEmail(order?.customer_email ?? order?.customer?.email)
   if (!user) return
 
   const metadata = user.user_metadata ?? {}
   const refundedOrderId = String(order?.id ?? '')
+  if (refundedOrderId && metadata.polarOrderId && String(metadata.polarOrderId) !== refundedOrderId) return
 
-  if (
-    refundedOrderId &&
-    metadata.polarOrderId &&
-    String(metadata.polarOrderId) !== refundedOrderId
-  ) {
-    return
-  }
-
+  const freeCredits = Math.max(0, Number(metadata.freePdfCredits ?? 0) || 0)
   const { error } = await supabase.auth.admin.updateUserById(user.id, {
     user_metadata: {
       ...metadata,
@@ -263,13 +226,10 @@ async function handleRefund(order: any) {
       polarRefundedOrderId: refundedOrderId,
       refundedAt: new Date().toISOString(),
       paidSingleCredits: 0,
-      singleCredits: Math.max(
-        0,
-        Number(metadata.freePdfCredits ?? 3) || 0
-      )
+      singleCredits: freeCredits,
+      freePdfCredits: freeCredits
     }
   })
-
   if (error) throw error
 
   await sendWhatsApp(
@@ -279,13 +239,8 @@ async function handleRefund(order: any) {
 }
 
 Deno.serve(async (request) => {
-  if (request.method !== 'POST') {
-    return json({ ok: false, error: 'Method not allowed' }, 405)
-  }
-
-  if (!POLAR_WEBHOOK_SECRET || !SERVICE_ROLE_KEY) {
-    return json({ ok: false, error: 'Webhook is not configured' }, 500)
-  }
+  if (request.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405)
+  if (!POLAR_WEBHOOK_SECRET || !SERVICE_ROLE_KEY) return json({ ok: false, error: 'Webhook is not configured' }, 500)
 
   const body = await request.text()
 
@@ -300,14 +255,7 @@ Deno.serve(async (request) => {
     const eventType = String(payload?.type ?? 'unknown')
     console.log('[Polar] Webhook event:', eventType)
 
-    // Polar documents order.paid as the definitive fulfilment event.
-    // order.created may also arrive with paid=true, so it is safe to
-    // fulfil it through the same idempotent path.
-    if (
-      eventType === 'order.paid' ||
-      eventType === 'order.created' ||
-      eventType === 'order.updated'
-    ) {
+    if (eventType === 'order.paid' || eventType === 'order.created' || eventType === 'order.updated') {
       await activatePaidOrder(payload.data, eventType)
     } else if (eventType === 'order.refunded') {
       await handleRefund(payload.data)
