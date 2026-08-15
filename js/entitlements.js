@@ -1,7 +1,7 @@
 /* FineInvoice PDF entitlement + PDF sizing fix
  * Free users get 3 PDF downloads. Already-unlocked invoices remain free.
  * Legacy invoices INV-001..INV-003 remain accessible after the entitlement-ID migration.
- * PDF capture targets the actual invoice paper so the PDF fills A4 instead of capturing preview whitespace.
+ * PDF capture targets the actual invoice paper and uses larger readable typography.
  */
 (function () {
   'use strict';
@@ -13,10 +13,8 @@
     const add = value => {
       if (value !== undefined && value !== null && String(value).trim() !== '') ids.add(String(value));
     };
-
     if (typeof currentDraftId !== 'undefined') add(currentDraftId);
     add(new URLSearchParams(location.search).get('invoice'));
-
     if (typeof getInvoices === 'function') {
       const invoices = getInvoices();
       const requested = new URLSearchParams(location.search).get('invoice');
@@ -25,54 +23,38 @@
       const match = invoices.find(inv => [inv?.id, inv?.entitlementId, inv?.invNumber, inv?.invoice_number]
         .some(v => v !== undefined && v !== null && String(v) === needle));
       if (match) {
-        add(match.id);
-        add(match.entitlementId);
-        add(match.invNumber);
-        add(match.invoice_number);
+        add(match.id); add(match.entitlementId); add(match.invNumber); add(match.invoice_number);
       }
     }
-
     add(document.getElementById('invNumber')?.value);
     return [...ids];
   }
 
   function currentInvoiceNumber() {
     const value = document.getElementById('invNumber')?.value || '';
-    const match = String(value).match(/(?:INV[-_ ]?)?(\d+)/i);
+    const match = String(value).match(/(?:INV[-_ ]?)(\d+)/i);
     return match ? Number(match[1]) : null;
   }
 
   function isLegacyUnlocked(user) {
     if (String(user?.plan || 'free').toLowerCase() !== 'free') return false;
-
-    // The first three free invoices were created before entitlement IDs were
-    // stabilized. Keep them downloadable forever, while invoice #4+ remains
-    // subject to the normal credit gate.
     const number = currentInvoiceNumber();
     if (Number.isFinite(number) && number >= 1 && number <= 3) return true;
-
     const oldDownloads = parseInt(localStorage.getItem('fi_downloads') || '0', 10);
     if (oldDownloads < 1 || typeof getInvoices !== 'function') return false;
-
     const aliases = new Set(aliasesForCurrentInvoice());
     const invoices = getInvoices();
     if (!Array.isArray(invoices) || !invoices.length) return false;
-
     const firstThree = [...invoices]
       .filter(Boolean)
       .sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0))
       .slice(0, Math.min(3, oldDownloads));
-
-    return firstThree.some(inv =>
-      [inv.id, inv.entitlementId, inv.invNumber, inv.invoice_number]
-        .some(v => v != null && aliases.has(String(v)))
-    );
+    return firstThree.some(inv => [inv.id, inv.entitlementId, inv.invNumber, inv.invoice_number]
+      .some(v => v != null && aliases.has(String(v))));
   }
 
   function userUnlocked(user) {
-    const unlocked = Array.isArray(user?.unlockedInvoiceIds)
-      ? user.unlockedInvoiceIds.map(String)
-      : [];
+    const unlocked = Array.isArray(user?.unlockedInvoiceIds) ? user.unlockedInvoiceIds.map(String) : [];
     return aliasesForCurrentInvoice().some(id => unlocked.includes(id)) || isLegacyUnlocked(user);
   }
 
@@ -97,45 +79,93 @@
     return typeof getCurrentUser === 'function' ? getCurrentUser() : null;
   }
 
-  async function makeSizedPdf() {
-    if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
-      throw new Error('PDF engine unavailable');
-    }
+  function addReadablePdfStyles() {
+    if (document.getElementById('fineinvoice-pdf-size-fix')) return;
+    const style = document.createElement('style');
+    style.id = 'fineinvoice-pdf-size-fix';
+    style.textContent = `
+      /* Screen preview: keep the compact layout, but make the actual invoice easier to read. */
+      #invoiceDoc.pdf-large .invoice-paper { font-size: 13px !important; line-height: 1.38 !important; }
+      #invoiceDoc.pdf-large .inv-company-name { font-size: 24px !important; }
+      #invoiceDoc.pdf-large .inv-company-email { font-size: 11px !important; }
+      #invoiceDoc.pdf-large .inv-badge { font-size: 29px !important; }
+      #invoiceDoc.pdf-large .inv-bill-label { font-size: 9.5px !important; }
+      #invoiceDoc.pdf-large .inv-bill-name { font-size: 16px !important; }
+      #invoiceDoc.pdf-large .inv-small,
+      #invoiceDoc.pdf-large .inv-details { font-size: 11.5px !important; }
+      #invoiceDoc.pdf-large .inv-items-table { font-size: 11.5px !important; }
+      #invoiceDoc.pdf-large .inv-items-table th { font-size: 9.5px !important; padding: 7px 7px !important; }
+      #invoiceDoc.pdf-large .inv-items-table td { padding: 7px 7px !important; }
+      #invoiceDoc.pdf-large .inv-total-row { font-size: 11.5px !important; }
+      #invoiceDoc.pdf-large .inv-grand { font-size: 16px !important; }
+      #invoiceDoc.pdf-large .inv-notes { font-size: 11px !important; }
+      #invoiceDoc.pdf-large .inv-footer { font-size: 9.5px !important; }
 
+      @media print {
+        @page { size: A4 portrait; margin: 6mm; }
+        body.print-mode #invoiceDoc { font-size: 13px !important; line-height: 1.4 !important; }
+        body.print-mode .invoice-paper { width: 100% !important; max-width: none !important; padding: 4mm 3mm !important; }
+        body.print-mode .inv-company-name { font-size: 24px !important; }
+        body.print-mode .inv-bill-name { font-size: 16px !important; }
+        body.print-mode .inv-small, body.print-mode .inv-details { font-size: 11.5px !important; }
+        body.print-mode .inv-items-table { font-size: 11.5px !important; }
+        body.print-mode .inv-items-table th { font-size: 9.5px !important; }
+        body.print-mode .inv-items-table td { padding: 7px 7px !important; }
+        body.print-mode .inv-total-row { font-size: 11.5px !important; }
+        body.print-mode .inv-grand { font-size: 16px !important; }
+        body.print-mode .inv-notes { font-size: 11px !important; }
+        body.print-mode .inv-footer { font-size: 9.5px !important; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  async function makeSizedPdf() {
+    if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) throw new Error('PDF engine unavailable');
     const paper = document.querySelector('#invoiceDoc .invoice-paper');
     if (!paper) throw new Error('Invoice is empty');
 
-    const canvas = await html2canvas(paper, {
-      scale: 3,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      scrollX: 0,
-      scrollY: 0,
-      logging: false
-    });
+    const invoiceDoc = document.getElementById('invoiceDoc');
+    invoiceDoc.classList.add('pdf-large');
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const margin = 6;
-    const maxW = pageW - margin * 2;
-    const maxH = pageH - margin * 2;
+    try {
+      const canvas = await html2canvas(paper, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        logging: false
+      });
 
-    let w = maxW;
-    let h = canvas.height * w / canvas.width;
-    if (h > maxH) {
-      const scale = maxH / h;
-      w *= scale;
-      h *= scale;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 6;
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+      let w = maxW;
+      let h = canvas.height * w / canvas.width;
+
+      if (h > maxH) {
+        const scale = maxH / h;
+        w *= scale;
+        h *= scale;
+      }
+
+      const img = canvas.toDataURL('image/jpeg', 0.96);
+      doc.addImage(img, 'JPEG', (pageW - w) / 2, margin, w, h);
+      return doc;
+    } finally {
+      invoiceDoc.classList.remove('pdf-large');
     }
-
-    const img = canvas.toDataURL('image/jpeg', 0.96);
-    doc.addImage(img, 'JPEG', (pageW - w) / 2, margin, w, h);
-    return doc;
   }
 
   window.addEventListener('load', function () {
+    addReadablePdfStyles();
+
     if (typeof consumeInvoiceCredit === 'function') {
       const originalConsume = consumeInvoiceCredit;
       window.consumeInvoiceCredit = async function (user, invoiceId) {
@@ -143,83 +173,43 @@
         const canonical = aliases[0] || String(invoiceId || currentInvoiceId());
         const result = await originalConsume(user, canonical);
         if (!result?.ok || result.alreadyUnlocked || String(user?.plan || '').toLowerCase() === 'lifetime') return result;
-
-        const unlocked = [...new Set([
-          ...(user.unlockedInvoiceIds || []).map(String),
-          ...aliases,
-          canonical
-        ])];
-
+        const unlocked = [...new Set([...(user.unlockedInvoiceIds || []).map(String), ...aliases, canonical])];
         const sb = typeof getSupabase === 'function' ? getSupabase() : null;
         if (sb) {
           try {
             const { error } = await sb.auth.updateUser({ data: { unlockedInvoiceIds: unlocked } });
             if (error) console.warn('FineInvoice entitlement alias sync failed:', error);
-          } catch (error) {
-            console.warn('FineInvoice entitlement alias sync failed:', error);
-          }
+          } catch (error) { console.warn('FineInvoice entitlement alias sync failed:', error); }
         }
-
         user.unlockedInvoiceIds = unlocked;
         if (typeof saveCurrentUser === 'function') saveCurrentUser(user);
         return result;
       };
     }
-
-    const style = document.createElement('style');
-    style.textContent = `
-      @media print {
-        @page { size: A4 portrait; margin: 6mm; }
-        body.print-mode #invoiceDoc { font-size: 12px !important; line-height: 1.35 !important; }
-        body.print-mode .invoice-paper { width: 100% !important; max-width: none !important; padding: 4mm 3mm !important; }
-        body.print-mode .inv-company-name { font-size: 22px !important; }
-        body.print-mode .inv-bill-name { font-size: 15px !important; }
-        body.print-mode .inv-small, body.print-mode .inv-details { font-size: 11px !important; }
-        body.print-mode .inv-items-table { font-size: 11px !important; }
-        body.print-mode .inv-items-table th { font-size: 9px !important; }
-        body.print-mode .inv-items-table td { padding: 6px 7px !important; }
-        body.print-mode .inv-total-row { font-size: 11px !important; }
-        body.print-mode .inv-grand { font-size: 15px !important; }
-        body.print-mode .inv-footer { font-size: 9px !important; }
-      }
-    `;
-    document.head.appendChild(style);
   });
 
   window.addEventListener('load', function () {
     window.downloadPDF = async function () {
       const user = await loadGateUser();
-      if (!user) {
-        showToast('Please sign in again to create a PDF.', 'error', 5000);
-        return;
-      }
-
+      if (!user) { showToast('Please sign in again to create a PDF.', 'error', 5000); return; }
       const invoiceId = currentInvoiceId();
       const unlocked = userUnlocked(user);
       const lifetime = String(user.plan || 'free').toLowerCase() === 'lifetime';
       const credits = Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0);
-
       if (!lifetime && !unlocked && credits <= 0) {
         showToast('No PDF credits remaining. Please purchase a PDF credit or Lifetime Access.', 'error', 5000);
         if (confirm('You have no PDF credits remaining.\n\nSingle: $2 per PDF\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
         return;
       }
-
       showToast('Generating PDF…', 'info');
       try {
         const doc = await makeSizedPdf();
         if (!doc || typeof doc.save !== 'function') throw new Error('PDF generation failed');
-
         if (!lifetime && !unlocked) {
           const result = await consumeInvoiceCredit(user, invoiceId);
-          if (!result?.ok) {
-            showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000);
-            return;
-          }
+          if (!result?.ok) { showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000); return; }
         }
-
-        const number = String(document.getElementById('invNumber')?.value || 'invoice')
-          .replace(/[^a-z0-9._-]/gi, '_');
+        const number = String(document.getElementById('invNumber')?.value || 'invoice').replace(/[^a-z0-9._-]/gi, '_');
         doc.save(number + '.pdf');
         localStorage.setItem('fi_downloads', String(parseInt(localStorage.getItem('fi_downloads') || '0', 10) + 1));
         showToast('PDF downloaded! 🎉', 'success');
@@ -230,39 +220,27 @@
     };
   });
 
-  // Final entitlement guard: utils.js also wraps downloadPDF/printInvoice on
-  // window load. Because utils.js is loaded after this file, its load handler
-  // otherwise wins and can incorrectly block INV-001..INV-003 after the three
-  // free credits are exhausted. Re-apply the correct gate after every load
-  // handler has run, without changing the normal 3-free-invoice business rule.
+  // Final entitlement guard runs after utils.js so its gate remains authoritative.
   window.addEventListener('load', function () {
     setTimeout(function () {
+      addReadablePdfStyles();
       window.downloadPDF = async function () {
         const user = await loadGateUser();
-        if (!user) {
-          showToast('Please sign in again to create a PDF.', 'error', 5000);
-          return;
-        }
-
+        if (!user) { showToast('Please sign in again to create a PDF.', 'error', 5000); return; }
         const invoiceId = currentInvoiceId();
         const unlocked = userUnlocked(user);
         const lifetime = String(user.plan || 'free').toLowerCase() === 'lifetime';
         const credits = Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0);
-
         if (!lifetime && !unlocked && credits <= 0) {
           if (confirm('No PDF credits remain.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
           return;
         }
-
         showToast('Generating PDF…', 'info');
         try {
           const doc = await makeSizedPdf();
           if (!lifetime && !unlocked) {
             const result = await consumeInvoiceCredit(user, invoiceId);
-            if (!result?.ok) {
-              showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000);
-              return;
-            }
+            if (!result?.ok) { showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000); return; }
           }
           const number = String(document.getElementById('invNumber')?.value || 'invoice').replace(/[^a-z0-9._-]/gi, '_');
           doc.save(number + '.pdf');
@@ -276,10 +254,7 @@
 
       window.printInvoice = async function () {
         const user = await loadGateUser();
-        if (!user) {
-          showToast('Please sign in again to print.', 'error', 5000);
-          return;
-        }
+        if (!user) { showToast('Please sign in again to print.', 'error', 5000); return; }
         const invoiceId = currentInvoiceId();
         const unlocked = userUnlocked(user);
         const lifetime = String(user.plan || 'free').toLowerCase() === 'lifetime';
@@ -290,10 +265,7 @@
         }
         if (!lifetime && !unlocked) {
           const result = await consumeInvoiceCredit(user, invoiceId);
-          if (!result?.ok) {
-            showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000);
-            return;
-          }
+          if (!result?.ok) { showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000); return; }
         }
         document.body.classList.add('print-mode');
         window.print();
