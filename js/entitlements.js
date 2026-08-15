@@ -5,8 +5,6 @@
 (function () {
   'use strict';
 
-  // Disable the legacy second PDF wrapper in utils.js. It otherwise consumes
-  // a credit before the real generator and can consume twice.
   window.__fineInvoiceStrictPdfGateWrapped = true;
 
   function aliasesForCurrentInvoice() {
@@ -14,6 +12,7 @@
     const add = value => {
       if (value !== undefined && value !== null && String(value).trim() !== '') ids.add(String(value));
     };
+
     if (typeof currentDraftId !== 'undefined') add(currentDraftId);
     const requested = new URLSearchParams(location.search).get('invoice');
     add(requested);
@@ -31,26 +30,44 @@
         add(match.invoice_number);
       }
     }
+
     add(document.getElementById('invNumber')?.value);
     return [...ids];
   }
 
+  function currentInvoiceNumber() {
+    const value = document.getElementById('invNumber')?.value || '';
+    const match = String(value).match(/(?:INV[-_ ]?)?(\d+)/i);
+    return match ? Number(match[1]) : null;
+  }
+
   function isLegacyUnlocked(user) {
-    // Compatibility repair for the three PDFs already generated before the
-    // persistent entitlement identity was stabilized. If the old download
-    // counter confirms three completed free downloads, the first three saved
-    // invoices are treated as already unlocked. New invoice #4 remains gated.
+    // Compatibility repair for invoices created before the entitlement ID was
+    // stabilised. If three free PDFs were already generated, INV-001..INV-003
+    // must remain downloadable. This is intentionally limited to the first
+    // three invoice numbers so invoice #4 still correctly requires payment.
     if (String(user?.plan || 'free').toLowerCase() !== 'free') return false;
+
     const oldDownloads = parseInt(localStorage.getItem('fi_downloads') || '0', 10);
-    if (oldDownloads < 3 || typeof getInvoices !== 'function') return false;
+    if (oldDownloads < 1) return false;
+
+    const number = currentInvoiceNumber();
+    if (Number.isFinite(number) && number >= 1 && number <= Math.min(3, oldDownloads)) return true;
+
+    if (typeof getInvoices !== 'function') return false;
     const invoices = getInvoices();
     if (!Array.isArray(invoices) || !invoices.length) return false;
+
+    const aliases = new Set(aliasesForCurrentInvoice());
     const firstThree = [...invoices]
       .filter(Boolean)
       .sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0))
-      .slice(0, 3);
-    const aliases = new Set(aliasesForCurrentInvoice());
-    return firstThree.some(inv => [inv.id, inv.entitlementId, inv.invNumber, inv.invoice_number].some(v => v != null && aliases.has(String(v))));
+      .slice(0, Math.min(3, oldDownloads));
+
+    return firstThree.some(inv =>
+      [inv.id, inv.entitlementId, inv.invNumber, inv.invoice_number]
+        .some(v => v != null && aliases.has(String(v)))
+    );
   }
 
   function userUnlocked(user) {
@@ -65,7 +82,6 @@
     return aliases[0] || String(document.getElementById('invNumber')?.value || 'draft');
   }
 
-  // Stable entitlement lookup for old and new saved invoices.
   window.invoiceHasAccess = function (user) {
     if (!user) return false;
     const plan = String(user.plan || 'free').toLowerCase();
@@ -74,8 +90,6 @@
     return Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0) > 0;
   };
 
-  // Make the print wrapper in utils.js use the same stable aliases. The credit
-  // is consumed once by the original function, then aliases are persisted.
   window.addEventListener('load', function () {
     if (typeof consumeInvoiceCredit === 'function') {
       const originalConsume = consumeInvoiceCredit;
@@ -85,7 +99,12 @@
         const result = await originalConsume(user, canonical);
         if (!result?.ok || result.alreadyUnlocked || user?.plan === 'lifetime') return result;
 
-        const unlocked = [...new Set([...(user.unlockedInvoiceIds || []).map(String), ...aliases, canonical])];
+        const unlocked = [...new Set([
+          ...(user.unlockedInvoiceIds || []).map(String),
+          ...aliases,
+          canonical
+        ])];
+
         const sb = typeof getSupabase === 'function' ? getSupabase() : null;
         if (sb) {
           try {
@@ -95,13 +114,13 @@
             console.warn('FineInvoice entitlement alias sync failed:', error);
           }
         }
+
         user.unlockedInvoiceIds = unlocked;
         if (typeof saveCurrentUser === 'function') saveCurrentUser(user);
         return result;
       };
     }
 
-    // Restore the fuller A4 print scale while keeping the one-page A4 format.
     const style = document.createElement('style');
     style.textContent = `
       @media print {
@@ -122,14 +141,12 @@
     document.head.appendChild(style);
   });
 
-  // Use the builder's existing generatePDF() routine so the current invoice
-  // design and blank-row filtering remain unchanged. This file owns only the
-  // entitlement gate and credit accounting.
   window.addEventListener('load', function () {
     window.downloadPDF = async function () {
       const user = typeof getInvoiceAccessUser === 'function'
         ? await getInvoiceAccessUser()
         : (typeof getCurrentUser === 'function' ? getCurrentUser() : null);
+
       if (!user) {
         showToast('Please sign in again to create a PDF.', 'error', 5000);
         return;
