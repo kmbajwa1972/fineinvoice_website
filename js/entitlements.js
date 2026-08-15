@@ -1,6 +1,7 @@
-/* FineInvoice PDF entitlement fix
- * One gate only: generate first, consume exactly one credit after success.
- * Existing saved invoices keep access through stable ID/entitlementId/invoice-number aliases.
+/* FineInvoice PDF entitlement + PDF sizing fix
+ * Free users get 3 PDF downloads. Already-unlocked invoices remain free.
+ * Legacy invoices INV-001..INV-003 remain accessible after the entitlement-ID migration.
+ * PDF capture targets the actual invoice paper so the PDF fills A4 instead of capturing preview whitespace.
  */
 (function () {
   'use strict';
@@ -14,15 +15,15 @@
     };
 
     if (typeof currentDraftId !== 'undefined') add(currentDraftId);
-    const requested = new URLSearchParams(location.search).get('invoice');
-    add(requested);
+    add(new URLSearchParams(location.search).get('invoice'));
 
     if (typeof getInvoices === 'function') {
       const invoices = getInvoices();
-      const match = invoices.find(inv => {
-        const values = [inv?.id, inv?.entitlementId, inv?.invNumber, inv?.invoice_number];
-        return values.some(v => v !== undefined && v !== null && String(v) === String(requested || currentDraftId || ''));
-      });
+      const requested = new URLSearchParams(location.search).get('invoice');
+      const draft = typeof currentDraftId !== 'undefined' ? currentDraftId : '';
+      const needle = String(requested || draft || '');
+      const match = invoices.find(inv => [inv?.id, inv?.entitlementId, inv?.invNumber, inv?.invoice_number]
+        .some(v => v !== undefined && v !== null && String(v) === needle));
       if (match) {
         add(match.id);
         add(match.entitlementId);
@@ -42,23 +43,21 @@
   }
 
   function isLegacyUnlocked(user) {
-    // Compatibility repair for invoices created before the entitlement ID was
-    // stabilised. If three free PDFs were already generated, INV-001..INV-003
-    // must remain downloadable. This is intentionally limited to the first
-    // three invoice numbers so invoice #4 still correctly requires payment.
     if (String(user?.plan || 'free').toLowerCase() !== 'free') return false;
 
-    const oldDownloads = parseInt(localStorage.getItem('fi_downloads') || '0', 10);
-    if (oldDownloads < 1) return false;
-
+    // The first three free invoices were created before entitlement IDs were
+    // stabilized. Keep them downloadable forever, while invoice #4+ remains
+    // subject to the normal credit gate.
     const number = currentInvoiceNumber();
-    if (Number.isFinite(number) && number >= 1 && number <= Math.min(3, oldDownloads)) return true;
+    if (Number.isFinite(number) && number >= 1 && number <= 3) return true;
 
-    if (typeof getInvoices !== 'function') return false;
+    const oldDownloads = parseInt(localStorage.getItem('fi_downloads') || '0', 10);
+    if (oldDownloads < 1 || typeof getInvoices !== 'function') return false;
+
+    const aliases = new Set(aliasesForCurrentInvoice());
     const invoices = getInvoices();
     if (!Array.isArray(invoices) || !invoices.length) return false;
 
-    const aliases = new Set(aliasesForCurrentInvoice());
     const firstThree = [...invoices]
       .filter(Boolean)
       .sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0))
@@ -90,6 +89,55 @@
     return Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0) > 0;
   };
 
+  async function loadGateUser() {
+    if (typeof getInvoiceAccessUser === 'function') {
+      const user = await getInvoiceAccessUser();
+      if (user) return user;
+    }
+    return typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  }
+
+  async function makeSizedPdf() {
+    if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
+      throw new Error('PDF engine unavailable');
+    }
+
+    // Capture only the invoice paper. Capturing #invoiceDoc previously included
+    // the preview container's empty/min-height area, making the actual invoice
+    // appear unnecessarily small on the A4 PDF.
+    const paper = document.querySelector('#invoiceDoc .invoice-paper');
+    if (!paper) throw new Error('Invoice is empty');
+
+    const canvas = await html2canvas(paper, {
+      scale: 2.5,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      logging: false
+    });
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 6;
+    const maxW = pageW - margin * 2;
+    const maxH = pageH - margin * 2;
+
+    let w = maxW;
+    let h = canvas.height * w / canvas.width;
+    if (h > maxH) {
+      const scale = maxH / h;
+      w *= scale;
+      h *= scale;
+    }
+
+    const img = canvas.toDataURL('image/jpeg', 0.96);
+    doc.addImage(img, 'JPEG', (pageW - w) / 2, margin, w, h);
+    return doc;
+  }
+
   window.addEventListener('load', function () {
     if (typeof consumeInvoiceCredit === 'function') {
       const originalConsume = consumeInvoiceCredit;
@@ -97,7 +145,7 @@
         const aliases = aliasesForCurrentInvoice();
         const canonical = aliases[0] || String(invoiceId || currentInvoiceId());
         const result = await originalConsume(user, canonical);
-        if (!result?.ok || result.alreadyUnlocked || user?.plan === 'lifetime') return result;
+        if (!result?.ok || result.alreadyUnlocked || String(user?.plan || '').toLowerCase() === 'lifetime') return result;
 
         const unlocked = [...new Set([
           ...(user.unlockedInvoiceIds || []).map(String),
@@ -124,7 +172,7 @@
     const style = document.createElement('style');
     style.textContent = `
       @media print {
-        @page { size: A4 portrait; margin: 8mm; }
+        @page { size: A4 portrait; margin: 6mm; }
         body.print-mode #invoiceDoc { font-size: 12px !important; line-height: 1.35 !important; }
         body.print-mode .invoice-paper { width: 100% !important; max-width: none !important; padding: 4mm 3mm !important; }
         body.print-mode .inv-company-name { font-size: 22px !important; }
@@ -143,10 +191,7 @@
 
   window.addEventListener('load', function () {
     window.downloadPDF = async function () {
-      const user = typeof getInvoiceAccessUser === 'function'
-        ? await getInvoiceAccessUser()
-        : (typeof getCurrentUser === 'function' ? getCurrentUser() : null);
-
+      const user = await loadGateUser();
       if (!user) {
         showToast('Please sign in again to create a PDF.', 'error', 5000);
         return;
@@ -163,10 +208,9 @@
         return;
       }
 
+      showToast('Generating PDF…', 'info');
       try {
-        if (typeof generatePDF !== 'function') throw new Error('PDF engine unavailable');
-        showToast('Generating PDF…', 'info');
-        const doc = await generatePDF();
+        const doc = await makeSizedPdf();
         if (!doc || typeof doc.save !== 'function') throw new Error('PDF generation failed');
 
         if (!lifetime && !unlocked) {
@@ -177,7 +221,8 @@
           }
         }
 
-        const number = String(document.getElementById('invNumber')?.value || 'invoice').replace(/[^a-z0-9._-]/gi, '_');
+        const number = String(document.getElementById('invNumber')?.value || 'invoice')
+          .replace(/[^a-z0-9._-]/gi, '_');
         doc.save(number + '.pdf');
         localStorage.setItem('fi_downloads', String(parseInt(localStorage.getItem('fi_downloads') || '0', 10) + 1));
         showToast('PDF downloaded! 🎉', 'success');
