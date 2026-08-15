@@ -106,7 +106,7 @@
     if (!paper) throw new Error('Invoice is empty');
 
     const canvas = await html2canvas(paper, {
-      scale: 2.5,
+      scale: 3,
       useCORS: true,
       backgroundColor: '#ffffff',
       scrollX: 0,
