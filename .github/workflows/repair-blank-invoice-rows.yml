@@ -1,0 +1,58 @@
+name: Repair blank invoice rows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repair-blank-invoice-rows.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch app.html
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('app.html')
+          t = p.read_text(encoding='utf-8')
+
+          helper = "function getInvoiceRows(){return [...document.querySelectorAll('#itemsBody tr')].filter(tr=>{const ins=tr.querySelectorAll('input');const desc=(ins[0]?.value||'').trim();const rate=parseFloat(ins[3]?.value)||0;return desc!==''||rate!==0;})}"
+          if 'function getInvoiceRows()' not in t:
+              marker = 'function livePreview()'
+              if marker not in t:
+                  raise SystemExit('livePreview marker not found')
+              t = t.replace(marker, helper + '\\n' + marker, 1)
+
+          pattern = r"\[\.\.\.document\.querySelectorAll\('#itemsBody tr'\)\]"
+          t, replaced = re.subn(pattern, 'getInvoiceRows()', t)
+          print(f'replaced invoice row collections: {replaced}')
+          if replaced < 1:
+              raise SystemExit('No invoice row collection found to patch')
+
+          p.write_text(t, encoding='utf-8')
+
+      - name: Commit repair
+        run: |
+          git config user.name 'FineInvoice Repair Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Omit blank invoice rows from preview and PDF'
+          git push
+
+      - name: Remove temporary repair workflow
+        if: always()
+        run: |
+          git config user.name 'FineInvoice Repair Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm -f .github/workflows/repair-blank-invoice-rows.yml || true
+          git diff --cached --quiet && exit 0
+          git commit -m 'Remove temporary repair workflow'
+          git push
