@@ -1,55 +1,104 @@
 (() => {
-  const URL = 'https://mozllscpvaxdigatsxiu.supabase.co';
-  const KEY = 'sb_publishable_r_O7AsGp8D91rDquxrCJrw_7OMCI6kG';
-  let client;
+  'use strict';
+  const SUPABASE_URL = 'https://mozllscpvaxdigatsxiu.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_r_O7AsGp8D91rDquxrCJrw_7OMCI6kG';
+  let client = null;
+  let timer = null;
+
   function getClient() {
     if (client) return client;
-    if (window.supabase?.createClient) {
-      client = window.supabase.createClient(URL, KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-    }
+    if (!window.supabase?.createClient) return null;
+    client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
     return client;
   }
+
+  function readLocal() {
+    try { return JSON.parse(localStorage.getItem('fi_current_user') || 'null') || {}; }
+    catch { return {}; }
+  }
+
+  function apply(user) {
+    if (!user) return;
+    const meta = user.user_metadata || {};
+    const local = readLocal();
+    let plan = String(meta.plan || local.plan || 'free').toLowerCase();
+    if (!['free', 'single', 'lifetime'].includes(plan)) plan = 'free';
+
+    const free = plan === 'free'
+      ? Math.max(0, Number(meta.freePdfCredits ?? meta.singleCredits ?? local.freePdfCredits ?? local.singleCredits ?? 3) || 0)
+      : 0;
+    const paid = plan === 'single'
+      ? Math.max(0, Number(meta.paidSingleCredits ?? local.paidSingleCredits ?? 0) || 0)
+      : 0;
+
+    const next = {
+      ...local,
+      id: user.id,
+      email: user.email || local.email || '',
+      name: meta.name || local.name || user.email || 'User',
+      plan,
+      planVerified: meta.planVerified === true,
+      paymentProvider: meta.paymentProvider || local.paymentProvider || null,
+      plan_activated_at: meta.plan_activated_at || local.plan_activated_at || null,
+      freePdfCredits: free,
+      paidSingleCredits: paid,
+      singleCredits: plan === 'free' ? free : paid,
+      unlockedInvoiceIds: Array.isArray(meta.unlockedInvoiceIds)
+        ? [...new Set(meta.unlockedInvoiceIds.map(String))]
+        : (local.unlockedInvoiceIds || []),
+      whatsapp: meta.whatsapp || local.whatsapp || null
+    };
+
+    const changed = JSON.stringify({
+      plan: local.plan,
+      freePdfCredits: local.freePdfCredits,
+      paidSingleCredits: local.paidSingleCredits,
+      planVerified: local.planVerified
+    }) !== JSON.stringify({
+      plan: next.plan,
+      freePdfCredits: next.freePdfCredits,
+      paidSingleCredits: next.paidSingleCredits,
+      planVerified: next.planVerified
+    });
+
+    localStorage.setItem('fi_current_user', JSON.stringify(next));
+
+    if (changed) {
+      window.dispatchEvent(new CustomEvent('fineinvoice:entitlement-updated', {
+        detail: { user: next, plan, freePdfCredits: free, paidSingleCredits: paid }
+      }));
+    }
+
+    if (typeof window.refreshDashboardEntitlement === 'function') {
+      window.refreshDashboardEntitlement(next);
+    }
+  }
+
   async function sync() {
     try {
       const sb = getClient();
       if (!sb) return;
-      const { data: sessionData } = await sb.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      if (!token) return;
-      const res = await fetch(`${URL}/functions/v1/sync-entitlement`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: KEY,
-          'Content-Type': 'application/json'
-        },
-        body: '{}'
-      });
-      if (!res.ok) return;
-      const result = await res.json();
-      if (result?.synced || result?.plan) {
-        await sb.auth.refreshSession();
-        const { data: fresh } = await sb.auth.getUser();
-        const user = fresh?.user;
-        if (!user) return;
-        const meta = user.user_metadata || {};
-        const local = (() => { try { return JSON.parse(localStorage.getItem('fi_current_user') || 'null'); } catch { return null; } })() || {};
-        const plan = String(meta.plan || result.plan || local.plan || 'free').toLowerCase();
-        const free = plan === 'free' ? Math.max(0, Number(meta.freePdfCredits ?? meta.singleCredits ?? local.freePdfCredits ?? 0) || 0) : 0;
-        const paid = plan === 'single' ? Math.max(0, Number(meta.paidSingleCredits ?? result.paidSingleCredits ?? local.paidSingleCredits ?? 0) || 0) : 0;
-        const next = { ...local, id: user.id, email: user.email || local.email || '', name: meta.name || local.name || user.email || 'User', plan, planVerified: meta.planVerified === true, paymentProvider: meta.paymentProvider || local.paymentProvider || null, freePdfCredits: free, paidSingleCredits: paid, singleCredits: plan === 'free' ? free : 0, unlockedInvoiceIds: Array.isArray(meta.unlockedInvoiceIds) ? meta.unlockedInvoiceIds : (local.unlockedInvoiceIds || []) };
-        localStorage.setItem('fi_current_user', JSON.stringify(next));
-        window.dispatchEvent(new CustomEvent('fineinvoice:entitlement-updated', { detail: { user: next, plan, freePdfCredits: free, paidSingleCredits: paid } }));
-        if (typeof window.refreshEntitlementUI === 'function') window.refreshEntitlementUI(true);
-        if (typeof window.renderUserChip === 'function') window.renderUserChip('userChip');
-      }
-    } catch (e) {
-      console.warn('FineInvoice entitlement sync:', e);
+      let { data, error } = await sb.auth.getUser();
+      if (error || !data?.user) return;
+      apply(data.user);
+    } catch (error) {
+      console.warn('FineInvoice entitlement sync:', error);
     }
   }
-  window.addEventListener('DOMContentLoaded', () => {
+
+  function start() {
+    if (window.__fineInvoiceLiveEntitlementStarted) return;
+    window.__fineInvoiceLiveEntitlementStarted = true;
     sync();
-    setInterval(sync, 3000);
-  });
-  window.addEventListener('focus', sync);
+    timer = setInterval(sync, 2000);
+    window.addEventListener('focus', sync);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') sync();
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
 })();
