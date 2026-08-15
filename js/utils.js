@@ -10,518 +10,74 @@ function getSupabase() {
   });
   return window._supabase;
 }
-
-function safeJsonParse(value, fallback) {
-  try { return value ? JSON.parse(value) : fallback; }
-  catch (err) { console.warn('FineInvoice storage reset:', err); return fallback; }
-}
-
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>\"']/g, ch => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;'
-  }[ch]));
-}
-
+function safeJsonParse(value, fallback) { try { return value ? JSON.parse(value) : fallback; } catch (err) { console.warn('FineInvoice storage reset:', err); return fallback; } }
+function escapeHtml(str) { return String(str ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch])); }
 function getCustomers() { return safeJsonParse(localStorage.getItem('fi_customers'), []); }
 function getInvoices() { return safeJsonParse(localStorage.getItem('fi_invoices'), []); }
 function getLicense() { return safeJsonParse(localStorage.getItem('fi_license'), {}); }
 function getUsers() { return safeJsonParse(localStorage.getItem('fi_users'), []); }
 
-// Credit model:
-// - freePdfCredits: the remaining free uses from the account's original 3.
-// - paidSingleCredits: additional Single purchases, accumulated independently.
-// - singleCredits: legacy compatibility field = free + paid total.
 function normalizePlanUser(user) {
   if (!user || typeof user !== 'object') return user;
   let plan = String(user.plan || 'free').toLowerCase();
-  if (!['free', 'single', 'lifetime'].includes(plan)) plan = 'free';
+  if (!['free','single','lifetime'].includes(plan)) plan = 'free';
   user.plan = plan;
-
-  const freeFallback = Number.isFinite(Number(user.singleCredits))
-    ? Math.max(0, Number(user.singleCredits))
-    : 3;
-  user.freePdfCredits = Number.isFinite(Number(user.freePdfCredits))
-    ? Math.max(0, Number(user.freePdfCredits))
-    : freeFallback;
-  user.paidSingleCredits = Number.isFinite(Number(user.paidSingleCredits))
-    ? Math.max(0, Number(user.paidSingleCredits))
-    : 0;
-  user.unlockedInvoiceIds = Array.isArray(user.unlockedInvoiceIds)
-    ? [...new Set(user.unlockedInvoiceIds.map(String))]
-    : [];
+  const freeFallback = Number.isFinite(Number(user.singleCredits)) ? Math.max(0, Number(user.singleCredits)) : 3;
+  user.freePdfCredits = Number.isFinite(Number(user.freePdfCredits)) ? Math.max(0, Number(user.freePdfCredits)) : freeFallback;
+  user.paidSingleCredits = Number.isFinite(Number(user.paidSingleCredits)) ? Math.max(0, Number(user.paidSingleCredits)) : 0;
+  user.unlockedInvoiceIds = Array.isArray(user.unlockedInvoiceIds) ? [...new Set(user.unlockedInvoiceIds.map(String))] : [];
   user.singleCredits = user.freePdfCredits + user.paidSingleCredits;
   return user;
 }
-
-function getCurrentUser() {
-  const user = normalizePlanUser(safeJsonParse(localStorage.getItem('fi_current_user'), null));
-  if (user) localStorage.setItem('fi_current_user', JSON.stringify(user));
-  return user;
-}
-
-function saveCurrentUser(user) {
-  if (user) localStorage.setItem('fi_current_user', JSON.stringify(normalizePlanUser(user)));
-  else localStorage.removeItem('fi_current_user');
-}
-
+function getCurrentUser() { const user = normalizePlanUser(safeJsonParse(localStorage.getItem('fi_current_user'), null)); if (user) localStorage.setItem('fi_current_user', JSON.stringify(user)); return user; }
+function saveCurrentUser(user) { if (user) localStorage.setItem('fi_current_user', JSON.stringify(normalizePlanUser(user))); else localStorage.removeItem('fi_current_user'); }
 function saveCustomers(data) { localStorage.setItem('fi_customers', JSON.stringify(Array.isArray(data) ? data : [])); }
 function saveInvoices(data) { localStorage.setItem('fi_invoices', JSON.stringify(Array.isArray(data) ? data : [])); }
 function saveLicense(data) { localStorage.setItem('fi_license', JSON.stringify(data && typeof data === 'object' ? data : {})); }
 
 function applyRemoteEntitlementUser(remoteUser) {
   if (!remoteUser) return false;
-
   const meta = remoteUser.user_metadata || {};
   const previous = getCurrentUser() || {};
   const planValue = String(meta.plan || previous.plan || 'free').toLowerCase();
-  const plan = ['free', 'single', 'lifetime'].includes(planValue) ? planValue : 'free';
-
-  // Free credits never disappear merely because the customer purchases Single.
+  const plan = ['free','single','lifetime'].includes(planValue) ? planValue : 'free';
   const freeRaw = meta.freePdfCredits ?? previous.freePdfCredits ?? meta.singleCredits ?? 3;
   const paidRaw = meta.paidSingleCredits ?? previous.paidSingleCredits ?? 0;
   const freePdfCredits = Math.max(0, Number(freeRaw) || 0);
   const paidSingleCredits = plan === 'single' ? Math.max(0, Number(paidRaw) || 0) : 0;
-
-  const next = {
-    ...previous,
-    id: remoteUser.id,
-    email: remoteUser.email || previous.email || '',
-    name: meta.name || previous.name || remoteUser.email || 'User',
-    plan,
-    planVerified: meta.planVerified === true,
-    paymentProvider: meta.paymentProvider || previous.paymentProvider || null,
-    plan_activated_at: meta.plan_activated_at || previous.plan_activated_at || null,
-    freePdfCredits,
-    paidSingleCredits,
-    singleCredits: freePdfCredits + paidSingleCredits,
-    unlockedInvoiceIds: Array.isArray(meta.unlockedInvoiceIds)
-      ? [...new Set(meta.unlockedInvoiceIds.map(String))]
-      : (previous.unlockedInvoiceIds || []),
-    whatsapp: meta.whatsapp || previous.whatsapp || null
-  };
-
-  const changed =
-    String(previous.plan || 'free') !== plan ||
-    Number(previous.freePdfCredits ?? previous.singleCredits ?? 3) !== freePdfCredits ||
-    Number(previous.paidSingleCredits || 0) !== paidSingleCredits ||
-    JSON.stringify(previous.unlockedInvoiceIds || []) !== JSON.stringify(next.unlockedInvoiceIds || []);
-
+  const next = {...previous,id:remoteUser.id,email:remoteUser.email||previous.email||'',name:meta.name||previous.name||remoteUser.email||'User',plan,planVerified:meta.planVerified===true,paymentProvider:meta.paymentProvider||previous.paymentProvider||null,plan_activated_at:meta.plan_activated_at||previous.plan_activated_at||null,freePdfCredits,paidSingleCredits,singleCredits:freePdfCredits+paidSingleCredits,unlockedInvoiceIds:Array.isArray(meta.unlockedInvoiceIds)?[...new Set(meta.unlockedInvoiceIds.map(String))]:(previous.unlockedInvoiceIds||[]),whatsapp:meta.whatsapp||previous.whatsapp||null};
+  const changed=String(previous.plan||'free')!==plan||Number(previous.freePdfCredits??previous.singleCredits??3)!==freePdfCredits||Number(previous.paidSingleCredits||0)!==paidSingleCredits||JSON.stringify(previous.unlockedInvoiceIds||[])!==JSON.stringify(next.unlockedInvoiceIds||[]);
   saveCurrentUser(next);
-  if (changed) {
-    window.dispatchEvent(new CustomEvent('fineinvoice:entitlement-updated', {
-      detail: { user: next, plan, freePdfCredits, paidSingleCredits }
-    }));
-  }
+  if(changed) window.dispatchEvent(new CustomEvent('fineinvoice:entitlement-updated',{detail:{user:next,plan,freePdfCredits,paidSingleCredits}}));
   return changed;
 }
-
-async function syncEntitlementsNow() {
-  const sb = getSupabase();
-  if (!sb) return false;
-  try {
-    const { data, error } = await sb.auth.getUser();
-    if (error || !data?.user) return false;
-    return applyRemoteEntitlementUser(data.user);
-  } catch (error) {
-    console.warn('FineInvoice entitlement sync failed:', error);
-    return false;
-  }
-}
-
-let fineInvoiceEntitlementTimer = null;
-function startEntitlementSync() {
-  if (window.__fineInvoiceEntitlementSyncStarted) return;
-  window.__fineInvoiceEntitlementSyncStarted = true;
-  syncEntitlementsNow();
-  fineInvoiceEntitlementTimer = setInterval(syncEntitlementsNow, 2000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') syncEntitlementsNow();
-  });
-  window.addEventListener('focus', syncEntitlementsNow);
-}
-function stopEntitlementSync() {
-  if (fineInvoiceEntitlementTimer) clearInterval(fineInvoiceEntitlementTimer);
-  fineInvoiceEntitlementTimer = null;
-  window.__fineInvoiceEntitlementSyncStarted = false;
-}
-
-function requireAuth(redirect = 'signin.html') {
-  const user = getCurrentUser();
-  if (!user) window.location.href = redirect;
-  return user;
-}
-
-function requirePlan(user, minPlan, featureName) {
-  const order = { free: 0, single: 1, lifetime: 2 };
-  const userLevel = order[String(user?.plan || 'free').toLowerCase()] ?? 0;
-  const required = order[minPlan] ?? 1;
-  if (userLevel >= required) return true;
-  const label = minPlan === 'lifetime' ? 'Lifetime ($25)' : 'Single ($2) or higher';
-  showToast(`${featureName} requires ${label} plan.`, 'error', 5000);
-  return false;
-}
-
-const EMAILJS_SERVICE = 'service_xkh5qjd';
-const EMAILJS_TEMPLATE = 'template_invoice_send';
-const EMAILJS_PUBLIC = 'ypfhAplPP-LZxq9zy';
-async function sendInvoiceByEmail(toEmail, toName, fromName, invNumber, pdfBase64) {
-  if (!window.emailjs) return { error: 'EmailJS not loaded' };
-  try {
-    return { data: await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-      to_email: toEmail, to_name: toName, from_name: fromName,
-      inv_number: invNumber, pdf_base64: pdfBase64 || ''
-    }, EMAILJS_PUBLIC) };
-  } catch (error) { return { error }; }
-}
-
-function logout() {
-  localStorage.removeItem('fi_current_user');
-  const sb = getSupabase();
-  if (sb) sb.auth.signOut().finally(() => { window.location.href = 'index.html'; });
-  else window.location.href = 'index.html';
-}
-
-function showToast(msg, type = 'info', duration = 3000) {
-  // Opening a saved invoice must never claim that a PDF is ready/downloadable.
-  if (String(msg || '').trim() === 'Invoice loaded — ready to download! 🎉') return;
-  let c = document.getElementById('toast-container');
-  if (!c) {
-    c = document.createElement('div');
-    c.id = 'toast-container';
-    c.className = 'toast-container';
-    document.body.appendChild(c);
-  }
-  const t = document.createElement('div');
-  const icons = { success: '✅', error: '❌', info: '💡' };
-  t.className = `toast ${type}`;
-  const icon = document.createElement('span'); icon.textContent = icons[type] || '💡';
-  const text = document.createElement('span'); text.textContent = String(msg ?? '');
-  t.append(icon, text); c.appendChild(t);
-  setTimeout(() => {
-    t.style.opacity = '0'; t.style.transform = 'translateX(120%)'; t.style.transition = '.3s';
-    setTimeout(() => t.remove(), 300);
-  }, duration);
-}
-
-function renderUserChip(containerId) {
-  const user = getCurrentUser();
-  const el = document.getElementById(containerId);
-  if (!el || !user) return;
-  const initials = (user.name || user.email || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  const plan = String(user.plan || 'free').toUpperCase();
-  const planColor = plan === 'LIFETIME' ? '#B76E00' : plan === 'SINGLE' ? '#00C48C' : '#6C3FF5';
-  const planBg = plan === 'LIFETIME' ? 'rgba(255,181,0,.15)' : plan === 'SINGLE' ? 'rgba(0,196,140,.15)' : 'rgba(108,63,245,.15)';
-  el.innerHTML = `<div class="user-chip"><div class="avatar">${escapeHtml(initials)}</div><span>${escapeHtml(user.name || user.email || 'User')}</span></div><span class="badge" style="background:${planBg};color:${planColor};border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700">${plan}</span>`;
-  if (!el.dataset.fineInvoiceEntitlementListener) {
-    el.dataset.fineInvoiceEntitlementListener = '1';
-    window.addEventListener('fineinvoice:entitlement-updated', () => renderUserChip(containerId));
-  }
-}
-
-async function submitPaymentSubmission(sub) {
-  const sb = getSupabase();
-  if (!sb) return { error: { message: 'Database unavailable' } };
-  const { error } = await sb.from('payment_submissions').insert([sub]);
-  return { error };
-}
-async function checkUnlockCode(code) {
-  const sb = getSupabase();
-  if (!sb) return { error: { message: 'Database unavailable' } };
-  const { data, error } = await sb.rpc('redeem_unlock_code', { p_code: code });
-  if (error) return { error };
-  return { data: Array.isArray(data) ? data[0] : data };
-}
-async function markCodeUsed(id, code) {
-  const sb = getSupabase();
-  if (sb) await sb.rpc('mark_unlock_code_used', { p_id: id, p_code: code });
-}
-async function callAdminPayments(action, extra = {}) {
-  const sb = getSupabase();
-  if (!sb) return { error: { message: 'Database unavailable' } };
-  const { data: sd } = await sb.auth.getSession();
-  const token = sd?.session?.access_token;
-  if (!token) return { error: { message: 'Not signed in' } };
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-payments`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action, ...extra })
-    });
-    const body = await res.json();
-    if (!res.ok) return { error: { message: body.error || 'Request failed' } };
-    return body;
-  } catch (err) { return { error: { message: err.message || 'Network error' } }; }
-}
-async function getAllSubmissions() { return callAdminPayments('list'); }
-async function verifySubmissionAndIssueCode(id) { return callAdminPayments('verify', { id }); }
-
-function hasInvoiceAccess(user, invoiceId) {
-  if (!user) return false;
-  const plan = String(user.plan || 'free').toLowerCase();
-  if (plan === 'lifetime') return true;
-  if ((user.unlockedInvoiceIds || []).includes(String(invoiceId))) return true;
-  return (Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0)) > 0;
-}
-// Single authoritative global access predicate for the PDF entitlement manager.
-window.invoiceHasAccess = hasInvoiceAccess;
-
-async function getAuthenticatedUser() {
-  const sb = getSupabase();
-  if (!sb) return { user: null, error: 'Authentication service is unavailable.' };
-  let { data, error } = await sb.auth.getSession();
-  if (error) return { user: null, error: error.message || 'Unable to read authentication session.' };
-  if (!data?.session) {
-    try { const refreshed = await sb.auth.refreshSession(); data = refreshed.data; error = refreshed.error; }
-    catch (e) { error = e; }
-  }
-  if (error || !data?.session?.user) return { user: null, error: 'Your authentication session is missing or expired. Please sign in again.' };
-  return { user: data.session.user, error: null };
-}
-
-async function consumeInvoiceCredit(user, invoiceId) {
-  if (!user || !invoiceId) return { ok: false, error: 'Authentication is required.' };
-  const plan = String(user.plan || 'free').toLowerCase();
-  if (plan === 'lifetime') return { ok: true, unlimited: true };
-
-  const id = String(invoiceId);
-  const unlocked = Array.isArray(user.unlockedInvoiceIds) ? user.unlockedInvoiceIds.map(String) : [];
-  if (unlocked.includes(id)) return { ok: true, alreadyUnlocked: true };
-
-  const free = Math.max(0, Number(user.freePdfCredits || 0));
-  const paid = Math.max(0, Number(user.paidSingleCredits || 0));
-  let nextFree = free;
-  let nextPaid = paid;
-  let usedFree = false;
-  let usedPaid = false;
-
-  if (free > 0) { nextFree = free - 1; usedFree = true; }
-  else if (paid > 0) { nextPaid = paid - 1; usedPaid = true; }
-  else return { ok: false, error: 'No PDF credits remaining.' };
-
-  const nextUnlocked = [...new Set([...unlocked, id])];
-  const sb = getSupabase();
-  if (!sb) return { ok: false, error: 'Authentication service is unavailable.' };
-
-  let sessionData = await sb.auth.getSession();
-  if (!sessionData.data?.session) sessionData = await sb.auth.refreshSession();
-  if (!sessionData.data?.session) return { ok: false, error: 'Your authentication session is missing or expired. Please sign in again.' };
-
-  const metadata = {
-    freePdfCredits: nextFree,
-    paidSingleCredits: nextPaid,
-    singleCredits: nextFree + nextPaid,
-    unlockedInvoiceIds: nextUnlocked
-  };
-  const { data, error } = await sb.auth.updateUser({ data: metadata });
-  if (error) return { ok: false, error: error.message || 'Could not save your PDF credit.' };
-
-  const authMeta = data?.user?.user_metadata || {};
-  user.freePdfCredits = Number(authMeta.freePdfCredits ?? nextFree);
-  user.paidSingleCredits = Number(authMeta.paidSingleCredits ?? nextPaid);
-  user.singleCredits = user.freePdfCredits + user.paidSingleCredits;
-  user.unlockedInvoiceIds = Array.isArray(authMeta.unlockedInvoiceIds) ? authMeta.unlockedInvoiceIds : nextUnlocked;
-  saveCurrentUser(user);
-
-  return {
-    ok: true,
-    usedFree,
-    usedPaid,
-    freePdfCredits: user.freePdfCredits,
-    paidSingleCredits: user.paidSingleCredits,
-    totalPdfCredits: user.freePdfCredits + user.paidSingleCredits
-  };
-}
-
-function normalizeWhatsappNumber(raw) {
-  let d = String(raw).replace(/\D/g, '');
-  if (d.startsWith('00')) d = d.slice(2);
-  return d;
-}
-async function sendWhatsAppCode() { return { error: 'Unlock-code delivery is disabled. Polar payments activate plans automatically.' }; }
-async function notifyAdminNewSubmission() { return { error: 'Manual payment notifications are disabled.' }; }
-const ADMIN_WHATSAPP_NUMBER = '';
-
-function setActiveNav() {
-  const page = window.location.pathname.split('/').pop();
-  document.querySelectorAll('.sidebar-nav a, .sb-nav a').forEach(a => {
-    if (a.getAttribute('href') === page) a.classList.add('active');
-  });
-}
-
-// Legacy DOM gate kept for Print and backward compatibility. The production PDF
-// handler in entitlements.js is wrapped again at window load below so that the
-// final function always uses the authoritative access predicate and consumes a
-// credit only after successful PDF generation.
-window.addEventListener('DOMContentLoaded', () => {
-  const originalPrint = window.printInvoice;
-  const originalPDF = window.downloadPDF;
-
-  async function loadGateUser() {
-    const auth = await getAuthenticatedUser();
-    if (!auth.user) return { user: null, error: auth.error };
-    const a = auth.user;
-    const m = a.user_metadata || {};
-    const previous = getCurrentUser() || {};
-    const plan = ['free', 'single', 'lifetime'].includes(String(m.plan || previous.plan || 'free').toLowerCase())
-      ? String(m.plan || previous.plan || 'free').toLowerCase() : 'free';
-    const user = {
-      ...previous,
-      id: a.id,
-      email: a.email || previous.email || '',
-      name: m.name || previous.name || a.email || 'User',
-      plan,
-      planVerified: m.planVerified === true,
-      paymentProvider: m.paymentProvider || previous.paymentProvider || null,
-      freePdfCredits: Math.max(0, Number(m.freePdfCredits ?? previous.freePdfCredits ?? m.singleCredits ?? previous.singleCredits ?? 3) || 0),
-      paidSingleCredits: Math.max(0, Number(m.paidSingleCredits ?? previous.paidSingleCredits ?? 0) || 0),
-      unlockedInvoiceIds: Array.isArray(m.unlockedInvoiceIds) ? m.unlockedInvoiceIds : (previous.unlockedInvoiceIds || [])
-    };
-    user.singleCredits = user.freePdfCredits + user.paidSingleCredits;
-    saveCurrentUser(user);
-    return { user, error: null };
-  }
-
-  if (typeof originalPrint === 'function') {
-    window.printInvoice = async function () {
-      const loaded = await loadGateUser();
-      if (!loaded.user) { showToast(loaded.error || 'Please sign in again.', 'error'); return; }
-      const user = loaded.user;
-      const invoiceId = typeof currentDraftId !== 'undefined' ? String(currentDraftId) : ('draft-' + Date.now());
-      if (!hasInvoiceAccess(user, invoiceId)) {
-        if (confirm('Your PDF access is used up.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
-        return;
-      }
-      if (String(user.plan || 'free').toLowerCase() !== 'lifetime' && !(user.unlockedInvoiceIds || []).includes(invoiceId)) {
-        const result = await consumeInvoiceCredit(user, invoiceId);
-        if (!result.ok) { showToast(result.error || 'Could not save your PDF credit.', 'error'); return; }
-      }
-      document.body.classList.add('print-mode');
-      window.print();
-      setTimeout(() => document.body.classList.remove('print-mode'), 500);
-    };
-  }
-
-  // Do not replace the dedicated production PDF handler here; it is installed by
-  // entitlements.js during window.load and is wrapped by the strict gate below.
-  void originalPDF;
-});
-
-// Final production gate: entitlements.js installs the dedicated PDF renderer on
-// window.load. This listener is registered after that script, so it wraps the
-// actual final renderer. A signed-in user without credits is always blocked.
-window.addEventListener('load', () => {
-  if (window.__fineInvoiceStrictPdfGateWrapped) return;
-  const productionPDF = window.downloadPDF;
-  if (typeof productionPDF !== 'function') return;
-  window.__fineInvoiceStrictPdfGateWrapped = true;
-
-  window.downloadPDF = async function () {
-    const auth = await getAuthenticatedUser();
-    if (!auth.user) {
-      showToast(auth.error || 'Please sign in again.', 'error', 5000);
-      return;
-    }
-    const remote = auth.user.user_metadata || {};
-    const previous = getCurrentUser() || {};
-    const user = normalizePlanUser({
-      ...previous,
-      id: auth.user.id,
-      email: auth.user.email || previous.email || '',
-      name: remote.name || previous.name || auth.user.email || 'User',
-      plan: remote.plan || previous.plan || 'free',
-      freePdfCredits: remote.freePdfCredits ?? previous.freePdfCredits ?? 0,
-      paidSingleCredits: remote.paidSingleCredits ?? previous.paidSingleCredits ?? 0,
-      unlockedInvoiceIds: remote.unlockedInvoiceIds ?? previous.unlockedInvoiceIds ?? []
-    });
-    saveCurrentUser(user);
-
-    const invoiceId = typeof currentDraftId !== 'undefined'
-      ? String(currentDraftId)
-      : (document.getElementById('invNumber')?.value || 'draft');
-    const plan = String(user.plan || 'free').toLowerCase();
-    const unlocked = Array.isArray(user.unlockedInvoiceIds) && user.unlockedInvoiceIds.map(String).includes(invoiceId);
-    const hasCredits = Number(user.freePdfCredits || 0) > 0 || Number(user.paidSingleCredits || 0) > 0;
-
-    if (plan !== 'lifetime' && !unlocked && !hasCredits) {
-      showToast('No PDF credits remaining. Please purchase a PDF credit or Lifetime Access.', 'error', 5000);
-      if (confirm('You have no PDF credits remaining.\n\nSingle: $2 per PDF\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
-      return;
-    }
-
-    const beforeUnlocked = unlocked;
-    const beforeFree = Number(user.freePdfCredits || 0);
-    const beforePaid = Number(user.paidSingleCredits || 0);
-
-    // The dedicated renderer creates/saves the PDF. It does not consume a credit.
-    await productionPDF();
-
-    // Consume exactly once, only for an invoice that was not already unlocked.
-    // The renderer's successful completion is the point at which a credit is due.
-    if (plan !== 'lifetime' && !beforeUnlocked) {
-      const latest = getCurrentUser() || user;
-      const result = await consumeInvoiceCredit(latest, invoiceId);
-      if (!result.ok) {
-        console.error('FineInvoice credit consumption failed after PDF generation:', result.error);
-        return;
-      }
-      console.log('FineInvoice PDF credit consumed:', {
-        beforeFree, beforePaid,
-        afterFree: result.freePdfCredits,
-        afterPaid: result.paidSingleCredits
-      });
-      refreshEntitlementUI(false);
-    }
-  };
-});
-
-function refreshEntitlementUI(showNotice = false) {
-  const user = getCurrentUser();
-  if (!user) return;
-  const plan = String(user.plan || 'free').toUpperCase();
-  const planEl = document.getElementById('planVal');
-  const planNameEl = document.getElementById('planName');
-  if (planEl) planEl.textContent = plan;
-  if (planNameEl) planNameEl.textContent = plan;
-
-  const downloadEl = document.getElementById('downloadCount');
-  const downloadLbl = document.getElementById('downloadLbl');
-  if (downloadEl && downloadLbl) {
-    if (plan === 'LIFETIME') {
-      downloadEl.textContent = 'Unlimited';
-      downloadLbl.textContent = 'PDF Credits';
-    } else {
-      downloadEl.textContent = String(Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0));
-      downloadLbl.textContent = 'PDF Credits Left';
-    }
-  }
-  if (document.getElementById('userChip')) renderUserChip('userChip');
-  if (showNotice && typeof showToast === 'function') {
-    if (plan === 'LIFETIME') showToast('Lifetime Access activated — unlimited PDFs are now available.', 'success', 5000);
-    else if (plan === 'SINGLE') showToast(`Single plan activated — ${Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0)} PDF credit(s) available.`, 'success', 5000);
-  }
-}
-window.addEventListener('fineinvoice:entitlement-updated', () => refreshEntitlementUI(true));
-window.addEventListener('DOMContentLoaded', () => refreshEntitlementUI(false));
-
-function forceDashboardEntitlementUI() {
-  if (!document.getElementById('planVal') && !document.getElementById('planName')) return;
-  const user = getCurrentUser();
-  if (!user) return;
-  const plan = String(user.plan || 'free').toUpperCase();
-  const planVal = document.getElementById('planVal');
-  const planName = document.getElementById('planName');
-  const count = document.getElementById('downloadCount');
-  const label = document.getElementById('downloadLbl');
-  if (planVal) planVal.textContent = plan;
-  if (planName) planName.textContent = plan;
-  if (count && label) {
-    if (plan === 'LIFETIME') { count.textContent = 'Unlimited'; label.textContent = 'PDF Credits'; }
-    else { count.textContent = String(Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0)); label.textContent = 'PDF Credits Left'; }
-  }
-}
-window.addEventListener('fineinvoice:entitlement-updated', forceDashboardEntitlementUI);
-window.addEventListener('DOMContentLoaded', () => {
-  forceDashboardEntitlementUI();
-  setInterval(() => { syncEntitlementsNow().finally(forceDashboardEntitlementUI); }, 2000);
-});
-
-window.addEventListener('DOMContentLoaded', startEntitlementSync);
+async function syncEntitlementsNow(){const sb=getSupabase();if(!sb)return false;try{const {data,error}=await sb.auth.getUser();if(error||!data?.user)return false;return applyRemoteEntitlementUser(data.user);}catch(error){console.warn('FineInvoice entitlement sync failed:',error);return false;}}
+let fineInvoiceEntitlementTimer=null;
+function startEntitlementSync(){if(window.__fineInvoiceEntitlementSyncStarted)return;window.__fineInvoiceEntitlementSyncStarted=true;syncEntitlementsNow();fineInvoiceEntitlementTimer=setInterval(syncEntitlementsNow,2000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncEntitlementsNow();});window.addEventListener('focus',syncEntitlementsNow);}
+function stopEntitlementSync(){if(fineInvoiceEntitlementTimer)clearInterval(fineInvoiceEntitlementTimer);fineInvoiceEntitlementTimer=null;window.__fineInvoiceEntitlementSyncStarted=false;}
+function requireAuth(redirect='signin.html'){const user=getCurrentUser();if(!user)window.location.href=redirect;return user;}
+function requirePlan(user,minPlan,featureName){const order={free:0,single:1,lifetime:2};const userLevel=order[String(user?.plan||'free').toLowerCase()]??0;const required=order[minPlan]??1;if(userLevel>=required)return true;const label=minPlan==='lifetime'?'Lifetime ($25)':'Single ($2) or higher';showToast(`${featureName} requires ${label} plan.`,'error',5000);return false;}
+const EMAILJS_SERVICE='service_xkh5qjd';const EMAILJS_TEMPLATE='template_invoice_send';const EMAILJS_PUBLIC='ypfhAplPP-LZxq9zy';
+async function sendInvoiceByEmail(toEmail,toName,fromName,invNumber,pdfBase64){if(!window.emailjs)return{error:'EmailJS not loaded'};try{return{data:await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:toEmail,to_name:toName,from_name:fromName,inv_number:invNumber,pdf_base64:pdfBase64||''},EMAILJS_PUBLIC)}}catch(error){return{error}}}
+function logout(){localStorage.removeItem('fi_current_user');const sb=getSupabase();if(sb)sb.auth.signOut().finally(()=>{window.location.href='index.html';});else window.location.href='index.html';}
+function showToast(msg,type='info',duration=3000){if(String(msg||'').trim()==='Invoice loaded — ready to download! 🎉')return;let c=document.getElementById('toast-container');if(!c){c=document.createElement('div');c.id='toast-container';c.className='toast-container';document.body.appendChild(c);}const t=document.createElement('div');const icons={success:'✅',error:'❌',info:'💡'};t.className=`toast ${type}`;const icon=document.createElement('span');icon.textContent=icons[type]||'💡';const text=document.createElement('span');text.textContent=String(msg??'');t.append(icon,text);c.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(120%)';t.style.transition='.3s';setTimeout(()=>t.remove(),300);},duration);}
+function renderUserChip(containerId){const user=getCurrentUser();const el=document.getElementById(containerId);if(!el||!user)return;const initials=(user.name||user.email||'U').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);const plan=String(user.plan||'free').toUpperCase();const planColor=plan==='LIFETIME'?'#B76E00':plan==='SINGLE'?'#00C48C':'#6C3FF5';const planBg=plan==='LIFETIME'?'rgba(255,181,0,.15)':plan==='SINGLE'?'rgba(0,196,140,.15)':'rgba(108,63,245,.15)';el.innerHTML=`<div class="user-chip"><div class="avatar">${escapeHtml(initials)}</div><span>${escapeHtml(user.name||user.email||'User')}</span></div><span class="badge" style="background:${planBg};color:${planColor};border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700">${plan}</span>`;if(!el.dataset.fineInvoiceEntitlementListener){el.dataset.fineInvoiceEntitlementListener='1';window.addEventListener('fineinvoice:entitlement-updated',()=>renderUserChip(containerId));}}
+async function submitPaymentSubmission(sub){const sb=getSupabase();if(!sb)return{error:{message:'Database unavailable'}};const {error}=await sb.from('payment_submissions').insert([sub]);return{error};}
+async function checkUnlockCode(code){const sb=getSupabase();if(!sb)return{error:{message:'Database unavailable'}};const {data,error}=await sb.rpc('redeem_unlock_code',{p_code:code});if(error)return{error};return{data:Array.isArray(data)?data[0]:data};}
+async function markCodeUsed(id,code){const sb=getSupabase();if(sb)await sb.rpc('mark_unlock_code_used',{p_id:id,p_code:code});}
+async function callAdminPayments(action,extra={}){const sb=getSupabase();if(!sb)return{error:{message:'Database unavailable'}};const {data:sd}=await sb.auth.getSession();const token=sd?.session?.access_token;if(!token)return{error:{message:'Not signed in'}};try{const res=await fetch(`${SUPABASE_URL}/functions/v1/admin-payments`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({action,...extra})});const body=await res.json();if(!res.ok)return{error:{message:body.error||'Request failed'}};return body;}catch(err){return{error:{message:err.message||'Network error'}};}}
+async function getAllSubmissions(){return callAdminPayments('list');}async function verifySubmissionAndIssueCode(id){return callAdminPayments('verify',{id});}
+function hasInvoiceAccess(user,invoiceId){if(!user)return false;const plan=String(user.plan||'free').toLowerCase();if(plan==='lifetime')return true;if((user.unlockedInvoiceIds||[]).includes(String(invoiceId)))return true;return(Number(user.freePdfCredits||0)+Number(user.paidSingleCredits||0))>0;}
+window.invoiceHasAccess=hasInvoiceAccess;
+async function getAuthenticatedUser(){const sb=getSupabase();if(!sb)return{user:null,error:'Authentication service is unavailable.'};let{data,error}=await sb.auth.getSession();if(error)return{user:null,error:error.message||'Unable to read authentication session.'};if(!data?.session){try{const refreshed=await sb.auth.refreshSession();data=refreshed.data;error=refreshed.error;}catch(e){error=e;}}if(error||!data?.session?.user)return{user:null,error:'Your authentication session is missing or expired. Please sign in again.'};return{user:data.session.user,error:null};}
+async function consumeInvoiceCredit(user,invoiceId){if(!user||!invoiceId)return{ok:false,error:'Authentication is required.'};const plan=String(user.plan||'free').toLowerCase();if(plan==='lifetime')return{ok:true,unlimited:true};const id=String(invoiceId);const unlocked=Array.isArray(user.unlockedInvoiceIds)?user.unlockedInvoiceIds.map(String):[];if(unlocked.includes(id))return{ok:true,alreadyUnlocked:true};const free=Math.max(0,Number(user.freePdfCredits||0));const paid=Math.max(0,Number(user.paidSingleCredits||0));let nextFree=free,nextPaid=paid,usedFree=false,usedPaid=false;if(free>0){nextFree=free-1;usedFree=true;}else if(paid>0){nextPaid=paid-1;usedPaid=true;}else return{ok:false,error:'No PDF credits remaining.'};const nextUnlocked=[...new Set([...unlocked,id])];const sb=getSupabase();if(!sb)return{ok:false,error:'Authentication service is unavailable.'};let sessionData=await sb.auth.getSession();if(!sessionData.data?.session)sessionData=await sb.auth.refreshSession();if(!sessionData.data?.session)return{ok:false,error:'Your authentication session is missing or expired. Please sign in again.'};const metadata={freePdfCredits:nextFree,paidSingleCredits:nextPaid,singleCredits:nextFree+nextPaid,unlockedInvoiceIds:nextUnlocked};const {data,error}=await sb.auth.updateUser({data:metadata});if(error)return{ok:false,error:error.message||'Could not save your PDF credit.'};const authMeta=data?.user?.user_metadata||{};user.freePdfCredits=Number(authMeta.freePdfCredits??nextFree);user.paidSingleCredits=Number(authMeta.paidSingleCredits??nextPaid);user.singleCredits=user.freePdfCredits+user.paidSingleCredits;user.unlockedInvoiceIds=Array.isArray(authMeta.unlockedInvoiceIds)?authMeta.unlockedInvoiceIds:nextUnlocked;saveCurrentUser(user);return{ok:true,usedFree,usedPaid,freePdfCredits:user.freePdfCredits,paidSingleCredits:user.paidSingleCredits,totalPdfCredits:user.freePdfCredits+user.paidSingleCredits};}
+function normalizeWhatsappNumber(raw){let d=String(raw).replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);return d;}
+async function sendWhatsAppCode(){return{error:'Unlock-code delivery is disabled. Polar payments activate plans automatically.'};}async function notifyAdminNewSubmission(){return{error:'Manual payment notifications are disabled.'};}const ADMIN_WHATSAPP_NUMBER='';
+function setActiveNav(){const page=window.location.pathname.split('/').pop();document.querySelectorAll('.sidebar-nav a,.sb-nav a').forEach(a=>{if(a.getAttribute('href')===page)a.classList.add('active');});}
+window.addEventListener('DOMContentLoaded',()=>{const originalPrint=window.printInvoice;const originalPDF=window.downloadPDF;async function loadGateUser(){const auth=await getAuthenticatedUser();if(!auth.user)return{user:null,error:auth.error};const a=auth.user,m=a.user_metadata||{},previous=getCurrentUser()||{},plan=['free','single','lifetime'].includes(String(m.plan||previous.plan||'free').toLowerCase())?String(m.plan||previous.plan||'free').toLowerCase():'free';const user={...previous,id:a.id,email:a.email||previous.email||'',name:m.name||previous.name||a.email||'User',plan,planVerified:m.planVerified===true,paymentProvider:m.paymentProvider||previous.paymentProvider||null,freePdfCredits:Math.max(0,Number(m.freePdfCredits??previous.freePdfCredits??m.singleCredits??previous.singleCredits??3)||0),paidSingleCredits:Math.max(0,Number(m.paidSingleCredits??previous.paidSingleCredits??0)||0),unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(previous.unlockedInvoiceIds||[])};user.singleCredits=user.freePdfCredits+user.paidSingleCredits;saveCurrentUser(user);return{user,error:null};}
+if(typeof originalPrint==='function'){window.printInvoice=async function(){const loaded=await loadGateUser();if(!loaded.user){showToast(loaded.error||'Please sign in again.','error');return;}const user=loaded.user,invoiceId=typeof currentDraftId!=='undefined'?String(currentDraftId):('draft-'+Date.now());if(!hasInvoiceAccess(user,invoiceId)){if(confirm('Your PDF access is used up.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?'))location.href='payment.html';return;}if(String(user.plan||'free').toLowerCase()!=='lifetime'&&!(user.unlockedInvoiceIds||[]).includes(invoiceId)){const result=await consumeInvoiceCredit(user,invoiceId);if(!result.ok){showToast(result.error||'Could not save your PDF credit.','error');return;}}document.body.classList.add('print-mode');window.print();setTimeout(()=>document.body.classList.remove('print-mode'),500);};}void originalPDF;});
+window.addEventListener('load',()=>{if(window.__fineInvoiceStrictPdfGateWrapped)return;const productionPDF=window.downloadPDF;if(typeof productionPDF!=='function')return;window.__fineInvoiceStrictPdfGateWrapped=true;window.downloadPDF=async function(){const auth=await getAuthenticatedUser();if(!auth.user){showToast(auth.error||'Please sign in again.','error',5000);return;}const remote=auth.user.user_metadata||{},previous=getCurrentUser()||{},user=normalizePlanUser({...previous,id:auth.user.id,email:auth.user.email||previous.email||'',name:remote.name||previous.name||auth.user.email||'User',plan:remote.plan||previous.plan||'free',freePdfCredits:remote.freePdfCredits??previous.freePdfCredits??0,paidSingleCredits:remote.paidSingleCredits??previous.paidSingleCredits??0,unlockedInvoiceIds:remote.unlockedInvoiceIds??previous.unlockedInvoiceIds??[]});saveCurrentUser(user);const invoiceId=typeof currentDraftId!=='undefined'?String(currentDraftId):(document.getElementById('invNumber')?.value||'draft'),plan=String(user.plan||'free').toLowerCase(),unlocked=Array.isArray(user.unlockedInvoiceIds)&&user.unlockedInvoiceIds.map(String).includes(invoiceId),hasCredits=Number(user.freePdfCredits||0)>0||Number(user.paidSingleCredits||0)>0;if(plan!=='lifetime'&&!unlocked&&!hasCredits){showToast('No PDF credits remaining. Please purchase a PDF credit or Lifetime Access.','error',5000);if(confirm('You have no PDF credits remaining.\n\nSingle: $2 per PDF\nor Lifetime: $25 unlimited.\n\nGo to Billing?'))location.href='payment.html';return;}const beforeUnlocked=unlocked,beforeFree=Number(user.freePdfCredits||0),beforePaid=Number(user.paidSingleCredits||0),beforeDownloads=parseInt(localStorage.getItem('fi_downloads')||'0',10);await productionPDF();const afterDownloads=parseInt(localStorage.getItem('fi_downloads')||'0',10);if(plan!=='lifetime'&&!beforeUnlocked&&afterDownloads>beforeDownloads){const latest=getCurrentUser()||user;const result=await consumeInvoiceCredit(latest,invoiceId);if(!result.ok){console.error('FineInvoice credit consumption failed after PDF generation:',result.error);return;}console.log('FineInvoice PDF credit consumed:',{beforeFree,beforePaid,afterFree:result.freePdfCredits,afterPaid:result.paidSingleCredits});refreshEntitlementUI(false);}};});
+function refreshEntitlementUI(showNotice=false){const user=getCurrentUser();if(!user)return;const plan=String(user.plan||'free').toUpperCase(),planEl=document.getElementById('planVal'),planNameEl=document.getElementById('planName');if(planEl)planEl.textContent=plan;if(planNameEl)planNameEl.textContent=plan;const downloadEl=document.getElementById('downloadCount'),downloadLbl=document.getElementById('downloadLbl');if(downloadEl&&downloadLbl){if(plan==='LIFETIME'){downloadEl.textContent='Unlimited';downloadLbl.textContent='PDF Credits';}else{downloadEl.textContent=String(Number(user.freePdfCredits||0)+Number(user.paidSingleCredits||0));downloadLbl.textContent='PDF Credits Left';}}if(document.getElementById('userChip'))renderUserChip('userChip');if(showNotice&&typeof showToast==='function'){if(plan==='LIFETIME')showToast('Lifetime Access activated — unlimited PDFs are now available.','success',5000);else if(plan==='SINGLE')showToast(`Single plan activated — ${Number(user.freePdfCredits||0)+Number(user.paidSingleCredits||0)} PDF credit(s) available.`,'success',5000);}}
+window.addEventListener('fineinvoice:entitlement-updated',()=>refreshEntitlementUI(true));window.addEventListener('DOMContentLoaded',()=>refreshEntitlementUI(false));
+function forceDashboardEntitlementUI(){if(!document.getElementById('planVal')&&!document.getElementById('planName'))return;const user=getCurrentUser();if(!user)return;const plan=String(user.plan||'free').toUpperCase(),planVal=document.getElementById('planVal'),planName=document.getElementById('planName'),count=document.getElementById('downloadCount'),label=document.getElementById('downloadLbl');if(planVal)planVal.textContent=plan;if(planName)planName.textContent=plan;if(count&&label){if(plan==='LIFETIME'){count.textContent='Unlimited';label.textContent='PDF Credits';}else{count.textContent=String(Number(user.freePdfCredits||0)+Number(user.paidSingleCredits||0));label.textContent='PDF Credits Left';}}}
+window.addEventListener('fineinvoice:entitlement-updated',forceDashboardEntitlementUI);window.addEventListener('DOMContentLoaded',()=>{forceDashboardEntitlementUI();setInterval(()=>{syncEntitlementsNow().finally(forceDashboardEntitlementUI);},2000);});window.addEventListener('DOMContentLoaded',startEntitlementSync);
