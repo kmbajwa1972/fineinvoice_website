@@ -1,4 +1,4 @@
-const CACHE = 'fineinvoice-v5';
+const CACHE = 'fineinvoice-v6';
 const ENTITLEMENT_SCRIPT = '/js/entitlement-sync.js';
 const ASSETS = ['/', '/index.html', '/signup.html', '/signin.html', '/dashboard.html', '/app.html', '/invoices.html', '/customers.html', '/payment.html', '/css/theme.css', '/js/utils.js', ENTITLEMENT_SCRIPT, '/logo.jpg', '/manifest.json'];
 
@@ -22,7 +22,7 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Never touch non-web schemes such as chrome-extension://.
+  // Ignore extension/internal schemes. Cache API only accepts http/https.
   if (request.method !== 'GET' || !/^https?:$/.test(url.protocol)) return;
 
   if (request.mode === 'navigate' && url.origin === self.location.origin) {
@@ -33,13 +33,11 @@ self.addEventListener('fetch', event => {
         if (!type.includes('text/html')) return response;
 
         const text = await response.text();
-        if (text.includes(ENTITLEMENT_SCRIPT)) {
-          return new Response(text, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers
-          });
-        }
+        if (text.includes(ENTITLEMENT_SCRIPT)) return new Response(text, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers
+        });
 
         const injected = text.replace(
           '</body>',
