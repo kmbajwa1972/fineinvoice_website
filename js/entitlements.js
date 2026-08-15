@@ -43,10 +43,13 @@
     }
   };
 
-  /* PDF uses the same compact presentation as the browser print preview.
-     The live builder is a two-column editor; capturing that screen directly
-     makes html2canvas include the wrong layout dimensions. We temporarily
-     enable print-mode, then render a fixed A4-width invoice clone. */
+  /*
+   * Final PDF/print renderer.
+   * The invoice preview is already the correct visual document. The previous
+   * PDF code captured the editor layout, which is much taller than the print
+   * document. We now render the SAME print-mode invoice that the browser print
+   * preview shows, then fit that canvas to A4. This keeps PDF and Print aligned.
+   */
   window.addEventListener('load', function () {
     window.downloadPDF = async function () {
       const u = typeof getInvoiceAccessUser === 'function'
@@ -67,7 +70,8 @@
       }
 
       const plan = String(u?.plan || 'free').toLowerCase();
-      const alreadyUnlocked = plan === 'lifetime' || (u?.unlockedInvoiceIds || []).map(String).includes(invoiceId);
+      const unlocked = Array.isArray(u?.unlockedInvoiceIds) && u.unlockedInvoiceIds.map(String).includes(invoiceId);
+      const alreadyUnlocked = plan === 'lifetime' || unlocked;
       const source = document.getElementById('invoiceDoc');
       if (!source) {
         showToast('Invoice preview not found.', 'error');
@@ -75,65 +79,76 @@
       }
 
       showToast('Generating A4 PDF…', 'info');
-      let clone = null;
+      let printStyle = null;
       let printModeAdded = false;
-      let compactStyle = null;
+
       try {
+        /* Make PDF visually identical to browser Print Preview. */
         document.body.classList.add('print-mode');
         printModeAdded = true;
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-        clone = source.cloneNode(true);
-        clone.id = 'invoiceDocPdfRender';
-        clone.style.cssText = [
-          'position:absolute', 'left:-10000px', 'top:0',
-          'width:194mm', 'max-width:194mm', 'min-width:194mm',
-          'height:auto', 'min-height:0', 'margin:0',
-          'padding:8mm', 'box-sizing:border-box',
-          'background:#ffffff', 'overflow:visible',
-          'font-family:Plus Jakarta Sans,sans-serif',
-          'font-size:11px', 'line-height:1.35', 'color:#1A1A2E'
-        ].join(';');
-        document.body.appendChild(clone);
-
-        compactStyle = document.createElement('style');
-        compactStyle.id = 'fineinvoice-pdf-compact-style';
-        compactStyle.textContent = `
-          #invoiceDocPdfRender{width:194mm!important;max-width:194mm!important;min-width:194mm!important}
-          #invoiceDocPdfRender .inv-header{margin-bottom:10px!important;padding-bottom:8px!important}
-          #invoiceDocPdfRender .inv-company-name{font-size:18px!important;margin-bottom:2px!important}
-          #invoiceDocPdfRender .inv-company-email{font-size:10px!important}
-          #invoiceDocPdfRender .inv-logo{max-height:38px!important;max-width:105px!important}
-          #invoiceDocPdfRender .inv-badge{font-size:22px!important}
-          #invoiceDocPdfRender .inv-meta{margin-bottom:10px!important}
-          #invoiceDocPdfRender .inv-bill-label{font-size:8px!important;margin-bottom:3px!important}
-          #invoiceDocPdfRender .inv-bill-name{font-size:12px!important}
-          #invoiceDocPdfRender .inv-details{font-size:10px!important}
-          #invoiceDocPdfRender .inv-details div{margin-bottom:2px!important}
-          #invoiceDocPdfRender .inv-items-table{margin-bottom:10px!important;font-size:9px!important}
-          #invoiceDocPdfRender .inv-items-table th{padding:5px 6px!important;font-size:8px!important}
-          #invoiceDocPdfRender .inv-items-table td{padding:5px 6px!important}
-          #invoiceDocPdfRender .inv-totals{margin-bottom:9px!important}
-          #invoiceDocPdfRender .inv-totals-box{min-width:175px!important}
-          #invoiceDocPdfRender .inv-total-row{font-size:9px!important;margin-bottom:3px!important}
-          #invoiceDocPdfRender .inv-grand{font-size:13px!important;padding-top:6px!important;margin-top:4px!important;min-height:0!important}
-          #invoiceDocPdfRender .inv-footer{font-size:8px!important;padding-top:8px!important}
-          #invoiceDocPdfRender *{break-inside:avoid!important;page-break-inside:avoid!important}
+        printStyle = document.createElement('style');
+        printStyle.id = 'fineinvoice-pdf-layout-style';
+        printStyle.textContent = `
+          body.print-mode .preview-body,
+          body.print-mode #invoiceDoc {
+            padding: 7mm !important;
+            min-height: 0 !important;
+            height: auto !important;
+            margin: 0 !important;
+            background: #fff !important;
+            box-sizing: border-box !important;
+          }
+          body.print-mode #invoiceDoc {
+            width: 100% !important;
+            max-width: 100% !important;
+            font-size: 10px !important;
+            line-height: 1.25 !important;
+          }
+          body.print-mode #invoiceDoc .inv-header {
+            margin-bottom: 10px !important;
+            padding-bottom: 8px !important;
+            border-bottom-width: 1px !important;
+          }
+          body.print-mode #invoiceDoc .inv-company-name { font-size: 17px !important; margin-bottom: 2px !important; }
+          body.print-mode #invoiceDoc .inv-company-email { font-size: 9px !important; }
+          body.print-mode #invoiceDoc .inv-logo { max-width: 105px !important; max-height: 38px !important; }
+          body.print-mode #invoiceDoc .inv-badge { font-size: 21px !important; }
+          body.print-mode #invoiceDoc .inv-meta { margin-bottom: 9px !important; }
+          body.print-mode #invoiceDoc .inv-bill-label { font-size: 8px !important; margin-bottom: 3px !important; }
+          body.print-mode #invoiceDoc .inv-bill-name { font-size: 12px !important; }
+          body.print-mode #invoiceDoc .inv-details { font-size: 9px !important; }
+          body.print-mode #invoiceDoc .inv-details div { margin-bottom: 2px !important; }
+          body.print-mode #invoiceDoc .inv-items-table { margin-bottom: 9px !important; font-size: 9px !important; }
+          body.print-mode #invoiceDoc .inv-items-table th { padding: 4px 5px !important; font-size: 7.5px !important; border-bottom-width: 1px !important; }
+          body.print-mode #invoiceDoc .inv-items-table td { padding: 4px 5px !important; }
+          body.print-mode #invoiceDoc .inv-totals { margin-bottom: 8px !important; }
+          body.print-mode #invoiceDoc .inv-totals-box { min-width: 175px !important; }
+          body.print-mode #invoiceDoc .inv-total-row { font-size: 9px !important; margin-bottom: 2px !important; }
+          body.print-mode #invoiceDoc .inv-grand { font-size: 12px !important; padding-top: 5px !important; margin-top: 3px !important; min-height: 0 !important; }
+          body.print-mode #invoiceDoc .inv-footer { font-size: 7.5px !important; padding-top: 6px !important; }
+          body.print-mode #invoiceDoc > div[style*="background:#f9f7ff"] {
+            padding: 7px 9px !important;
+            margin-bottom: 8px !important;
+            font-size: 9px !important;
+          }
+          body.print-mode #invoiceDoc * { break-inside: avoid !important; page-break-inside: avoid !important; }
         `;
-        document.head.appendChild(compactStyle);
+        document.head.appendChild(printStyle);
 
         if (document.fonts?.ready) await document.fonts.ready;
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-        const canvas = await html2canvas(clone, {
+        /* Capture the actual print-mode invoice, not a clone of the editor. */
+        const canvas = await html2canvas(source, {
           scale: 2,
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
-          width: clone.scrollWidth,
-          height: clone.scrollHeight,
-          windowWidth: clone.scrollWidth,
-          windowHeight: clone.scrollHeight,
+          width: source.scrollWidth,
+          height: source.scrollHeight,
+          windowWidth: source.scrollWidth,
+          windowHeight: source.scrollHeight,
           scrollX: 0,
           scrollY: 0
         });
@@ -151,28 +166,29 @@
         const invNum = document.getElementById('invNumber')?.value || 'invoice';
         const safeName = String(invNum).replace(/[^a-z0-9._-]/gi, '_');
 
-        /* Normal invoices should fit on one A4 page. Only if the content is
-           genuinely taller than A4 do we paginate it. */
+        /* Fit any normal invoice to one A4 page. */
         if (naturalH <= usableH) {
           doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, usableW, naturalH);
         } else {
-          const sourcePageHeight = Math.floor((usableH * canvas.width) / usableW);
-          let sourceY = 0;
+          /* Only genuinely long invoices receive a second page. */
+          const scale = usableW / canvas.width;
+          const scaledH = canvas.height * scale;
+          const pageSourceHeight = Math.max(1, Math.floor(usableH / scale));
+          let y = 0;
           let page = 0;
-          while (sourceY < canvas.height) {
+          while (y < canvas.height) {
             if (page > 0) doc.addPage();
-            const sourceHeight = Math.min(sourcePageHeight, canvas.height - sourceY);
+            const h = Math.min(pageSourceHeight, canvas.height - y);
             const slice = document.createElement('canvas');
             slice.width = canvas.width;
-            slice.height = sourceHeight;
+            slice.height = h;
             const ctx = slice.getContext('2d');
             if (!ctx) throw new Error('PDF canvas unavailable');
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, slice.width, slice.height);
-            ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, slice.width, sourceHeight);
-            const sliceH = (sourceHeight * usableW) / canvas.width;
-            doc.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, usableW, Math.min(usableH, sliceH));
-            sourceY += sourceHeight;
+            ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+            doc.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, usableW, Math.min(usableH, h * scale));
+            y += h;
             page += 1;
           }
         }
@@ -194,8 +210,7 @@
         console.error('FineInvoice PDF generation failed:', error);
         showToast('PDF generation failed. Your PDF credit was not used.', 'error', 5000);
       } finally {
-        compactStyle?.remove();
-        clone?.remove();
+        printStyle?.remove();
         if (printModeAdded) document.body.classList.remove('print-mode');
       }
     };
