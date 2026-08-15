@@ -1,6 +1,10 @@
-// FineInvoice cloud persistence repair.
-// Primary invoice storage is Supabase; localStorage remains only a cache/fallback.
+// FineInvoice cloud persistence layer.
+// Supabase is the primary invoice store; localStorage remains a cache/fallback.
 (function () {
+  'use strict';
+  if (window.__fineInvoiceCloudPersistenceLoaded) return;
+  window.__fineInvoiceCloudPersistenceLoaded = true;
+
   function sb() { return typeof getSupabase === 'function' ? getSupabase() : null; }
   async function sessionUser() {
     const client = sb();
@@ -14,7 +18,7 @@
   }
   function legacyIdOf(row) {
     const p = payloadOf(row);
-    return p.legacy_id != null ? String(p.legacy_id) : String(row?.id || '');
+    return p.legacy_id != null ? String(p.legacy_id) : '';
   }
   function toRow(invoice, userId, existingId) {
     return {
@@ -37,36 +41,63 @@
       payload: { ...invoice, legacy_id: invoice.id != null ? String(invoice.id) : null }
     };
   }
+
   async function findCloudInvoice(id) {
     const client = sb(), user = await sessionUser();
     if (!client || !user) return { data: null, error: { message: 'Not authenticated' } };
-    let q = await client.from('invoices').select('*').eq('user_id', user.id).eq('id', id).maybeSingle();
-    if (q.data || q.error) return q;
-    return client.from('invoices').select('*').eq('user_id', user.id).filter('payload->>legacy_id', 'eq', String(id)).maybeSingle();
+    const wanted = String(id || '');
+    if (!wanted) return { data: null, error: null };
+
+    const byId = await client.from('invoices').select('*').eq('user_id', user.id).eq('id', wanted).maybeSingle();
+    if (byId.error) return byId;
+    if (byId.data) return byId;
+
+    return client.from('invoices').select('*').eq('user_id', user.id).filter('payload->>legacy_id', 'eq', wanted).maybeSingle();
   }
+
   async function saveCloudInvoice(invoice) {
     const client = sb(), user = await sessionUser();
     if (!client || !user) return { data: null, error: { message: 'Not authenticated' } };
     const legacy = invoice.id != null ? String(invoice.id) : '';
     let existing = null;
+
+    // First try the actual Supabase UUID. This matters when an invoice was opened
+    // from the cloud list and currentDraftId is now the cloud row id.
     if (legacy) {
-      const r = await client.from('invoices').select('id').eq('user_id', user.id).filter('payload->>legacy_id', 'eq', legacy).maybeSingle();
-      if (r.error) return { data: null, error: r.error };
-      existing = r.data?.id || null;
+      const byId = await client.from('invoices').select('id').eq('user_id', user.id).eq('id', legacy).maybeSingle();
+      if (byId.error) return { data: null, error: byId.error };
+      existing = byId.data?.id || null;
     }
-    if (existing) return client.from('invoices').update(toRow(invoice, user.id, existing)).eq('id', existing).select().single();
+
+    // Then try the original browser/local invoice id stored in payload.
+    if (!existing && legacy) {
+      const byLegacy = await client.from('invoices').select('id').eq('user_id', user.id).filter('payload->>legacy_id', 'eq', legacy).maybeSingle();
+      if (byLegacy.error) return { data: null, error: byLegacy.error };
+      existing = byLegacy.data?.id || null;
+    }
+
+    if (existing) {
+      return client.from('invoices').update(toRow(invoice, user.id, existing)).eq('id', existing).eq('user_id', user.id).select().single();
+    }
     return client.from('invoices').insert(toRow(invoice, user.id)).select().single();
   }
+
   async function loadCloudInvoices() {
     const client = sb(), user = await sessionUser();
     if (!client || !user) return { data: [], error: { message: 'Not authenticated' } };
     return client.from('invoices').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
   }
+
   async function deleteCloudInvoice(id) {
     const client = sb(), user = await sessionUser();
     if (!client || !user) return { error: { message: 'Not authenticated' } };
-    return client.from('invoices').delete().eq('id', id).eq('user_id', user.id);
+    const wanted = String(id || '');
+    if (!wanted) return { error: { message: 'Invoice id is missing.' } };
+    const direct = await client.from('invoices').delete().eq('id', wanted).eq('user_id', user.id);
+    if (direct.error) return direct;
+    return direct;
   }
+
   window.fineInvoiceCloud = { loadCloudInvoices, saveCloudInvoice, findCloudInvoice, deleteCloudInvoice };
 
   function cacheInvoice(invoice) {
@@ -116,19 +147,26 @@
 
   async function repairBuilder() {
     if (!document.getElementById('invoiceDoc') || typeof window.saveInvoice !== 'function') return;
-    const originalSave = window.saveInvoice;
+
     window.saveInvoice = async function () {
       const invoice = collectInvoiceFromBuilder();
-      if (!invoice.company || !invoice.customer) { showToast('Please enter company and customer name', 'error'); return; }
+      if (!invoice.company || !invoice.customer) {
+        showToast('Please enter company and customer name', 'error');
+        return;
+      }
       const result = await saveCloudInvoice(invoice);
-      if (result.error) { console.error('Cloud invoice save failed:', result.error); showToast('Invoice could not be saved to your account.', 'error', 5000); return; }
+      if (result.error) {
+        console.error('Cloud invoice save failed:', result.error);
+        showToast('Invoice could not be saved to your account.', 'error', 5000);
+        return;
+      }
       const cloudId = result.data?.id;
       if (cloudId) invoice.cloudId = cloudId;
+      // Keep the browser cache too, but never touch entitlement/credit fields here.
       cacheInvoice(invoice);
       showToast('Invoice saved securely to your account ✅', 'success');
     };
 
-    // If an invoice was opened from the invoice list, hydrate it from Supabase.
     const invoiceParam = new URLSearchParams(location.search).get('invoice');
     if (invoiceParam && typeof window.loadInvoiceById === 'function') {
       try {
@@ -150,25 +188,65 @@
             p.items.forEach(item => {
               if (typeof window.addItem === 'function') window.addItem();
               const tr = document.getElementById('itemsBody').lastElementChild, ins = tr?.querySelectorAll('input');
-              if (ins) { ins[0].value = item.desc || ''; ins[1].value = item.qty || 1; ins[2].value = item.unit || ''; ins[3].value = item.rate || 0; ins[4].value = item.itemTax || 0; ins[5].value = item.itemDisc || 0; }
+              if (ins) {
+                ins[0].value = item.desc || '';
+                ins[1].value = item.qty || 1;
+                ins[2].value = item.unit || '';
+                ins[3].value = item.rate || 0;
+                ins[4].value = item.itemTax || 0;
+                ins[5].value = item.itemDisc || 0;
+              }
             });
           }
           if (typeof window.livePreview === 'function') window.livePreview();
           window.currentDraftId = String(row.id);
           cacheInvoice({ ...p, id: String(row.id), invNumber: p.invNumber ?? row.inv_number, customer: p.customer ?? row.customer, company: p.company ?? row.company, currency: p.currency ?? row.currency, total: Number(row.total || p.total || 0) });
         }
-      } catch (e) { console.warn('Cloud invoice hydration failed:', e); }
+      } catch (e) {
+        console.warn('Cloud invoice hydration failed:', e);
+      }
     }
+  }
+
+  async function migrateLocalInvoicesIfNeeded(cloudRows) {
+    if (typeof getInvoices !== 'function') return cloudRows;
+    const localRows = getInvoices();
+    if (!Array.isArray(localRows) || !localRows.length) return cloudRows;
+    const cloudLegacy = new Set((cloudRows || []).map(legacyIdOf).filter(Boolean));
+    let changed = false;
+    for (const local of localRows) {
+      const localId = String(local?.id || '');
+      if (!localId || cloudLegacy.has(localId)) continue;
+      const saved = await saveCloudInvoice(local);
+      if (!saved.error) {
+        changed = true;
+        cloudLegacy.add(localId);
+      } else {
+        console.warn('FineInvoice local invoice migration skipped:', saved.error);
+      }
+    }
+    if (changed) {
+      const refreshed = await loadCloudInvoices();
+      return refreshed.error ? cloudRows : (refreshed.data || []);
+    }
+    return cloudRows;
   }
 
   async function repairInvoiceList() {
     if (!document.getElementById('invoiceTable')) return;
     const result = await loadCloudInvoices();
-    if (result.error) { console.warn('Cloud invoice list failed:', result.error); return; }
-    const rows = result.data || [];
+    if (result.error) {
+      console.warn('Cloud invoice list failed:', result.error);
+      return;
+    }
+    const rows = await migrateLocalInvoicesIfNeeded(result.data || []);
     const table = document.getElementById('invoiceTable'), empty = document.getElementById('emptyState'), count = document.getElementById('invoiceCountLabel');
     if (count) count.textContent = `${rows.length} invoice${rows.length !== 1 ? 's' : ''}`;
-    if (!rows.length) { table.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+    if (!rows.length) {
+      table.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
     if (empty) empty.style.display = 'none';
     const sym = { PKR: '₨', USD: '$', EUR: '€', AED: 'AED ', GBP: '£' };
     const esc = typeof escapeHtml === 'function' ? escapeHtml : s => String(s ?? '');
@@ -179,8 +257,19 @@
       return `<tr><td><span class="mono" style="font-size:13px;font-weight:600">${esc(num)}</span></td><td><strong>${esc(row.company || p.company || '—')}</strong></td><td>${esc(row.customer || p.customer || '—')}</td><td style="color:var(--muted);font-size:13px">${date ? new Date(date).toLocaleDateString('en-GB') : '—'}</td><td><span class="inv-amount">${amount}</span></td><td><span class="status-badge status-${esc(row.status || 'saved')}">${row.status === 'paid' ? '✅ Paid' : '📄 Saved'}</span></td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="openInvoice('${String(row.id)}')">📂 Open</button><button class="btn btn-danger btn-sm" onclick="fineInvoiceDelete('${String(row.id)}')">🗑️</button></div></td></tr>`;
     }).join('');
     window.openInvoice = id => { location.href = 'app.html?invoice=' + encodeURIComponent(id); };
-    window.fineInvoiceDelete = async id => { if (!confirm('Delete this invoice?')) return; const r = await deleteCloudInvoice(id); if (r.error) { showToast(r.error.message, 'error'); return; } showToast('Invoice deleted', 'info'); await repairInvoiceList(); };
+    window.fineInvoiceDelete = async id => {
+      if (!confirm('Delete this invoice?')) return;
+      const r = await deleteCloudInvoice(id);
+      if (r.error) { showToast(r.error.message, 'error'); return; }
+      const local = typeof getInvoices === 'function' ? getInvoices().filter(x => String(x.id) !== String(id)) : [];
+      if (typeof saveInvoices === 'function') saveInvoices(local);
+      showToast('Invoice deleted', 'info');
+      await repairInvoiceList();
+    };
   }
 
-  window.addEventListener('load', async () => { await repairBuilder(); await repairInvoiceList(); });
+  window.addEventListener('load', async () => {
+    try { await repairBuilder(); } catch (e) { console.warn('FineInvoice builder cloud repair failed:', e); }
+    try { await repairInvoiceList(); } catch (e) { console.warn('FineInvoice invoice-list cloud repair failed:', e); }
+  });
 })();
