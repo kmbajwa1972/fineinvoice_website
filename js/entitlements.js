@@ -1,352 +1,169 @@
-/* FineInvoice commercial entitlement manager + dedicated PDF template */
+/* FineInvoice PDF entitlement fix
+ * One gate only: generate first, consume exactly one credit after success.
+ * Existing saved invoices keep access through stable ID/entitlementId/invoice-number aliases.
+ */
 (function () {
   'use strict';
-  const FREE_START = 3;
-  const PLAN_LIFETIME = 'lifetime';
 
-  function normalizeUser(user) {
-    if (!user) return null;
-    const plan = String(user.plan || 'free').toLowerCase();
-    return {
-      ...user,
-      plan,
-      freePdfCredits: Number.isFinite(Number(user.freePdfCredits))
-        ? Math.max(0, Number(user.freePdfCredits))
-        : (Number.isFinite(Number(user.singleCredits)) ? Math.max(0, Number(user.singleCredits)) : FREE_START),
-      paidSingleCredits: Math.max(0, Number(user.paidSingleCredits || 0)),
-      unlockedInvoiceIds: Array.isArray(user.unlockedInvoiceIds)
-        ? [...new Set(user.unlockedInvoiceIds.map(String))]
-        : []
+  // js/utils.js contains a legacy second PDF wrapper. Tell it not to wrap the
+  // production download function again; otherwise one free PDF can consume
+  // two credits and previously unlocked invoices can appear locked.
+  window.__fineInvoiceStrictPdfGateWrapped = true;
+
+  function aliasesForCurrentInvoice() {
+    const ids = new Set();
+    const add = value => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') ids.add(String(value));
     };
+
+    if (typeof currentDraftId !== 'undefined') add(currentDraftId);
+
+    const requested = new URLSearchParams(location.search).get('invoice');
+    add(requested);
+
+    if (typeof getInvoices === 'function') {
+      const invoices = getInvoices();
+      const match = invoices.find(inv => {
+        const values = [inv?.id, inv?.entitlementId, inv?.invNumber, inv?.invoice_number];
+        return values.some(v => v !== undefined && v !== null && String(v) === String(requested || currentDraftId || ''));
+      });
+      if (match) {
+        add(match.id);
+        add(match.entitlementId);
+        add(match.invNumber);
+        add(match.invoice_number);
+      }
+    }
+
+    add(document.getElementById('invNumber')?.value);
+    return [...ids];
   }
 
-  window.FineInvoiceEntitlements = {
-    FREE_START,
-    normalizeUser,
-    invoiceEntitlementId(invoice) {
-      return invoice ? String(invoice.entitlementId || invoice.id || '') : null;
-    },
-    isLifetime(user) {
-      return String(user?.plan || '').toLowerCase() === PLAN_LIFETIME;
-    },
-    isUnlocked(user, id) {
-      return !!id && Array.isArray(user?.unlockedInvoiceIds) && user.unlockedInvoiceIds.includes(String(id));
-    }
+  function userUnlocked(user) {
+    const unlocked = Array.isArray(user?.unlockedInvoiceIds)
+      ? user.unlockedInvoiceIds.map(String)
+      : [];
+    return aliasesForCurrentInvoice().some(id => unlocked.includes(id));
+  }
+
+  function currentInvoiceId() {
+    const aliases = aliasesForCurrentInvoice();
+    return aliases[0] || String(document.getElementById('invNumber')?.value || 'draft');
+  }
+
+  // Override the global access helper so old invoices whose stored entitlement
+  // ID differs from their current URL ID still resolve to the same entitlement.
+  window.invoiceHasAccess = function (user) {
+    if (!user) return false;
+    const plan = String(user.plan || 'free').toLowerCase();
+    if (plan === 'lifetime') return true;
+    if (userUnlocked(user)) return true;
+    return Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0) > 0;
   };
 
-  /*
-   * Dedicated production PDF template.
-   *
-   * This intentionally DOES NOT use html2canvas. The builder/preview CSS has
-   * large gaps and a two-column editor around the invoice. Capturing that DOM
-   * was the source of the persistent two-page PDF problem.
-   *
-   * The PDF is drawn directly with jsPDF on an A4 canvas, with fixed compact
-   * spacing. Normal invoices are always one page. Very large item lists are
-   * compressed before a second page is considered.
-   */
+  // The print wrapper in utils.js calls consumeInvoiceCredit(). Replace it with
+  // an alias-aware version so printing and PDF use the same persistent identity.
+  window.addEventListener('load', function () {
+    if (typeof consumeInvoiceCredit === 'function') {
+      const originalConsume = consumeInvoiceCredit;
+      window.consumeInvoiceCredit = async function (user, invoiceId) {
+        const beforeAliases = aliasesForCurrentInvoice();
+        const canonical = beforeAliases[0] || String(invoiceId || currentInvoiceId());
+        const result = await originalConsume(user, canonical);
+        if (!result?.ok || result.alreadyUnlocked || user?.plan === 'lifetime') return result;
+
+        // Preserve every known identity for this saved invoice. This is only an
+        // alias update; the credit was consumed exactly once above.
+        const aliases = [...new Set([...beforeAliases, canonical])];
+        const unlocked = [...new Set([...(user.unlockedInvoiceIds || []).map(String), ...aliases])];
+        const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+        if (sb) {
+          try {
+            const { error } = await sb.auth.updateUser({
+              data: { unlockedInvoiceIds: unlocked }
+            });
+            if (error) console.warn('FineInvoice entitlement alias sync failed:', error);
+          } catch (error) {
+            console.warn('FineInvoice entitlement alias sync failed:', error);
+          }
+        }
+        user.unlockedInvoiceIds = unlocked;
+        if (typeof saveCurrentUser === 'function') saveCurrentUser(user);
+        return result;
+      };
+    }
+
+    // Restore a fuller A4 print scale. The document remains one A4 sheet;
+    // this only prevents the compact screen styling from making print output
+    // unnecessarily tiny.
+    const style = document.createElement('style');
+    style.textContent = `
+      @media print {
+        @page { size: A4 portrait; margin: 8mm; }
+        body.print-mode #invoiceDoc { font-size: 12px !important; line-height: 1.35 !important; }
+        body.print-mode .invoice-paper { width: 100% !important; max-width: none !important; padding: 4mm 3mm !important; }
+        body.print-mode .inv-company-name { font-size: 22px !important; }
+        body.print-mode .inv-bill-name { font-size: 15px !important; }
+        body.print-mode .inv-small, body.print-mode .inv-details { font-size: 11px !important; }
+        body.print-mode .inv-items-table { font-size: 11px !important; }
+        body.print-mode .inv-items-table th { font-size: 9px !important; }
+        body.print-mode .inv-items-table td { padding: 6px 7px !important; }
+        body.print-mode .inv-total-row { font-size: 11px !important; }
+        body.print-mode .inv-grand { font-size: 15px !important; }
+        body.print-mode .inv-footer { font-size: 9px !important; }
+      }
+    `;
+    document.head.appendChild(style);
+  });
+
+  // Use the builder's existing generatePDF() routine so the current invoice
+  // layout, blank-row filtering and A4 handling stay intact. We only own the
+  // entitlement gate here.
   window.addEventListener('load', function () {
     window.downloadPDF = async function () {
-      const u = typeof getInvoiceAccessUser === 'function'
+      const user = typeof getInvoiceAccessUser === 'function'
         ? await getInvoiceAccessUser()
         : (typeof getCurrentUser === 'function' ? getCurrentUser() : null);
 
-      const invoiceId = String(
-        (typeof currentDraftId !== 'undefined' && currentDraftId)
-          ? currentDraftId
-          : (document.getElementById('invNumber')?.value || 'draft')
-      );
+      if (!user) {
+        showToast('Please sign in again to create a PDF.', 'error', 5000);
+        return;
+      }
 
-      const hasAccess = typeof invoiceHasAccess === 'function'
-        ? invoiceHasAccess(u, invoiceId)
-        : !!u;
+      const invoiceId = currentInvoiceId();
+      const unlocked = userUnlocked(user);
+      const lifetime = String(user.plan || 'free').toLowerCase() === 'lifetime';
+      const credits = Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0);
 
-      if (!hasAccess) {
-        if (confirm('Your free PDF credits have been used.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) {
-          window.location.href = 'payment.html';
+      if (!lifetime && !unlocked && credits <= 0) {
+        showToast('No PDF credits remaining. Please purchase a PDF credit or Lifetime Access.', 'error', 5000);
+        if (confirm('You have no PDF credits remaining.\n\nSingle: $2 per PDF\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) {
+          location.href = 'payment.html';
         }
         return;
       }
 
-      const plan = String(u?.plan || 'free').toLowerCase();
-      const unlocked = Array.isArray(u?.unlockedInvoiceIds)
-        && u.unlockedInvoiceIds.map(String).includes(invoiceId);
-      const alreadyUnlocked = plan === 'lifetime' || unlocked;
-
-      showToast('Creating compact A4 invoice…', 'info');
-
       try {
-        const { jsPDF } = window.jspdf || {};
-        if (!jsPDF) throw new Error('PDF engine unavailable');
+        if (typeof generatePDF !== 'function') throw new Error('PDF engine unavailable');
+        showToast('Generating PDF…', 'info');
+        const doc = await generatePDF();
+        if (!doc || typeof doc.save !== 'function') throw new Error('PDF generation failed');
 
-        const val = id => document.getElementById(id)?.value?.trim() || '';
-        const company = val('company') || 'Your Company';
-        const bizEmail = val('bizEmail');
-        const customer = val('customer') || 'Client Name';
-        const custEmail = val('custEmail');
-        const custAddress = val('custAddress');
-        const invNumber = val('invNumber') || 'INV-001';
-        const invDate = val('invDate');
-        const dueDate = val('dueDate');
-        const currency = val('currency') || 'USD';
-        const notes = val('notes');
-        const taxPct = parseFloat(val('tax')) || 0;
-        const discountPct = parseFloat(val('discount')) || 0;
-
-        const currencySymbol = {
-          PKR: 'PKR ', USD: '$', EUR: '€', AED: 'AED ', GBP: '£'
-        }[currency] || `${currency} `;
-
-        const selectedTheme = document.querySelector('.theme-dot.selected')?.dataset?.color;
-        const accent = selectedTheme || '#6C3FF5';
-
-        const rows = [...document.querySelectorAll('#itemsBody tr')].map(tr => {
-          const ins = tr.querySelectorAll('input');
-          const desc = ins[0]?.value?.trim() || 'Item';
-          const qty = parseFloat(ins[1]?.value) || 0;
-          const unit = ins[2]?.value?.trim() || '';
-          const rate = parseFloat(ins[3]?.value) || 0;
-          const itemTax = document.getElementById('advancedCols')?.checked ? (parseFloat(ins[4]?.value) || 0) : 0;
-          const itemDisc = document.getElementById('advancedCols')?.checked ? (parseFloat(ins[5]?.value) || 0) : 0;
-          const base = qty * rate;
-          const tax = base * itemTax / 100;
-          const disc = base * itemDisc / 100;
-          return {
-            desc,
-            qtyLabel: unit ? `${qty} ${unit}` : String(qty),
-            rate,
-            amount: base + tax - disc
-          };
-        });
-
-        let subtotal = 0;
-        let itemTaxTotal = 0;
-        let itemDiscTotal = 0;
-        rows.forEach((r, i) => {
-          const tr = [...document.querySelectorAll('#itemsBody tr')][i];
-          const ins = tr?.querySelectorAll('input');
-          const qty = parseFloat(ins?.[1]?.value) || 0;
-          const rate = parseFloat(ins?.[3]?.value) || 0;
-          const base = qty * rate;
-          const itemTax = document.getElementById('advancedCols')?.checked ? (parseFloat(ins?.[4]?.value) || 0) : 0;
-          const itemDisc = document.getElementById('advancedCols')?.checked ? (parseFloat(ins?.[5]?.value) || 0) : 0;
-          subtotal += base;
-          itemTaxTotal += base * itemTax / 100;
-          itemDiscTotal += base * itemDisc / 100;
-        });
-        const globalTax = subtotal * taxPct / 100;
-        const globalDisc = subtotal * discountPct / 100;
-        const taxTotal = itemTaxTotal + globalTax;
-        const discTotal = itemDiscTotal + globalDisc;
-        const total = subtotal + taxTotal - discTotal;
-
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-        const pageW = doc.internal.pageSize.getWidth();
-        const pageH = doc.internal.pageSize.getHeight();
-        const M = 12;
-        const W = pageW - M * 2;
-        let y = M;
-
-        const rgb = hex => {
-          const h = String(hex).replace('#', '');
-          return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-        };
-        const ac = rgb(accent);
-
-        const money = n => `${currencySymbol}${Number(n || 0).toFixed(2)}`;
-        const dateText = s => {
-          if (!s) return '';
-          const d = new Date(`${s}T00:00:00`);
-          return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-GB');
-        };
-
-        // Header: compact, clean, no giant "INVOICE" watermark.
-        doc.setFillColor(...ac);
-        doc.rect(M, y, 3, 19, 'F');
-        doc.setTextColor(25, 25, 40);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.text(company, M + 7, y + 7);
-        if (bizEmail) {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8.5);
-          doc.setTextColor(105, 105, 125);
-          doc.text(bizEmail, M + 7, y + 12);
-        }
-
-        // Logo from the existing builder, if supplied.
-        const logo = document.getElementById('logoImg');
-        if (logo?.src && logo.src.startsWith('data:image/')) {
-          try {
-            const fmt = logo.src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logo.src, fmt, pageW - M - 27, y + 1, 27, 17, undefined, 'FAST');
-          } catch (e) {
-            console.warn('FineInvoice logo PDF skipped:', e);
-          }
-        } else {
-          doc.setTextColor(...ac);
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(17);
-          doc.text('INVOICE', pageW - M, y + 9, { align: 'right' });
-        }
-        doc.setDrawColor(225, 225, 232);
-        doc.line(M, y + 22, pageW - M, y + 22);
-        y += 29;
-
-        // Customer and invoice metadata in a compact two-column block.
-        const leftX = M;
-        const rightX = pageW - M;
-        doc.setTextColor(110, 110, 130);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.text('BILL TO', leftX, y);
-        doc.text('INVOICE DETAILS', rightX, y, { align: 'right' });
-        y += 5;
-        doc.setTextColor(25, 25, 40);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10.5);
-        doc.text(customer, leftX, y);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(95, 95, 115);
-        let cy = y + 4;
-        if (custEmail) { doc.text(custEmail, leftX, cy); cy += 3.7; }
-        if (custAddress) {
-          const addr = doc.splitTextToSize(custAddress, W * 0.48);
-          doc.text(addr, leftX, cy);
-          cy += addr.length * 3.5;
-        }
-
-        doc.setTextColor(45, 45, 60);
-        doc.setFontSize(8);
-        const meta = [
-          ['Invoice #', invNumber],
-          invDate ? ['Issue Date', dateText(invDate)] : null,
-          dueDate ? ['Due Date', dateText(dueDate)] : null,
-          ['Currency', currency]
-        ].filter(Boolean);
-        let my = y;
-        meta.forEach(([k, v]) => {
-          doc.setFont('helvetica', 'bold');
-          doc.text(k, rightX - 32, my, { align: 'right' });
-          doc.setFont('helvetica', 'normal');
-          doc.text(v, rightX, my, { align: 'right' });
-          my += 3.8;
-        });
-        y = Math.max(cy, my) + 7;
-
-        // Compact item table.
-        const tableX = M;
-        const descW = W * 0.53;
-        const qtyW = W * 0.13;
-        const rateW = W * 0.16;
-        const amtW = W - descW - qtyW - rateW;
-        const cols = [tableX, tableX + descW, tableX + descW + qtyW, tableX + descW + qtyW + rateW, tableX + W];
-
-        doc.setFillColor(247, 246, 251);
-        doc.roundedRect(tableX, y, W, 7, 1.5, 1.5, 'F');
-        doc.setTextColor(...ac);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.2);
-        doc.text('DESCRIPTION', cols[0] + 3, y + 4.6);
-        doc.text('QTY', cols[2] - 3, y + 4.6, { align: 'right' });
-        doc.text('RATE', cols[3] - 3, y + 4.6, { align: 'right' });
-        doc.text('AMOUNT', cols[4] - 3, y + 4.6, { align: 'right' });
-        y += 8;
-
-        const availableBeforeTotals = pageH - M - 43;
-        const baseRowH = rows.length > 12 ? 5.5 : 6.5;
-        const fontSize = rows.length > 12 ? 7.2 : 8;
-
-        doc.setFontSize(fontSize);
-        rows.forEach((r, index) => {
-          const descLines = doc.splitTextToSize(r.desc, descW - 6);
-          const rowH = Math.max(baseRowH, descLines.length * 3.2 + 2.5);
-          doc.setDrawColor(232, 231, 238);
-          doc.line(tableX, y + rowH, tableX + W, y + rowH);
-          doc.setTextColor(40, 40, 55);
-          doc.setFont('helvetica', 'normal');
-          doc.text(descLines, cols[0] + 3, y + 4);
-          doc.text(r.qtyLabel, cols[2] - 3, y + 4, { align: 'right' });
-          doc.text(money(r.rate), cols[3] - 3, y + 4, { align: 'right' });
-          doc.setFont('helvetica', 'bold');
-          doc.text(money(r.amount), cols[4] - 3, y + 4, { align: 'right' });
-          y += rowH;
-        });
-
-        // If there are no items, still show a clean row.
-        if (!rows.length) {
-          doc.setTextColor(110, 110, 130);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.text('No line items', cols[0] + 3, y + 4);
-          doc.line(tableX, y + baseRowH, tableX + W, y + baseRowH);
-          y += baseRowH;
-        }
-
-        // Totals aligned right, compact.
-        y += 5;
-        const totalX = pageW - M - 72;
-        const totalValueX = pageW - M;
-        const totalRow = (label, amount, bold) => {
-          doc.setFont('helvetica', bold ? 'bold' : 'normal');
-          doc.setFontSize(bold ? 9 : 8);
-          doc.setTextColor(bold ? 30 : 100, bold ? 30 : 100, bold ? 45 : 120);
-          doc.text(label, totalX, y);
-          doc.text(amount, totalValueX, y, { align: 'right' });
-          y += bold ? 6 : 4.5;
-        };
-        totalRow('Subtotal', money(subtotal), false);
-        totalRow('Tax', money(taxTotal), false);
-        if (discTotal > 0) totalRow('Discount', `−${money(discTotal)}`, false);
-        doc.setDrawColor(...ac);
-        doc.setLineWidth(0.6);
-        doc.line(totalX, y - 1.5, totalValueX, y - 1.5);
-        y += 2;
-        totalRow('TOTAL', money(total), true);
-        doc.setLineWidth(0.2);
-
-        // Notes: compact, no oversized shaded box.
-        if (notes) {
-          y += 3;
-          doc.setFillColor(249, 248, 253);
-          const noteLines = doc.splitTextToSize(notes, W - 12);
-          const noteH = Math.min(18, 5 + noteLines.length * 3.2);
-          doc.roundedRect(M, y, W, noteH, 1.5, 1.5, 'F');
-          doc.setFillColor(...ac);
-          doc.rect(M, y, 2, noteH, 'F');
-          doc.setTextColor(75, 75, 95);
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7.5);
-          doc.text('NOTES', M + 6, y + 4);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7.2);
-          doc.text(noteLines.slice(0, 4), M + 6, y + 8);
-          y += noteH + 4;
-        }
-
-        // Footer at a fixed position so the invoice never creates a second page.
-        doc.setDrawColor(230, 230, 235);
-        doc.line(M, pageH - 15, pageW - M, pageH - 15);
-        doc.setTextColor(155, 155, 170);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text('Generated by FineInvoice · fineinvoice.com', pageW / 2, pageH - 9, { align: 'center' });
-
-        const safeName = String(invNumber).replace(/[^a-z0-9._-]/gi, '_');
-        doc.save(`${safeName}.pdf`);
-
-        if (!alreadyUnlocked && typeof consumeCommercialInvoiceCredit === 'function') {
-          const result = await consumeCommercialInvoiceCredit(u, invoiceId);
+        // Consume only after successful PDF creation. Re-downloading an
+        // already-unlocked invoice never consumes another credit.
+        if (!lifetime && !unlocked) {
+          const result = await consumeInvoiceCredit(user, invoiceId);
           if (!result?.ok) {
-            showToast(result?.error || 'Could not save PDF entitlement', 'error', 6000);
+            showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000);
             return;
           }
         }
 
-        const downloads = parseInt(localStorage.getItem('fi_downloads') || '0', 10) + 1;
-        localStorage.setItem('fi_downloads', String(downloads));
-        showToast('One-page A4 PDF downloaded! 🎉', 'success');
+        const number = String(document.getElementById('invNumber')?.value || 'invoice')
+          .replace(/[^a-z0-9._-]/gi, '_');
+        doc.save(number + '.pdf');
+        localStorage.setItem('fi_downloads', String(parseInt(localStorage.getItem('fi_downloads') || '0', 10) + 1));
+        showToast('PDF downloaded! 🎉', 'success');
       } catch (error) {
         console.error('FineInvoice PDF generation failed:', error);
         showToast('PDF generation failed. Your PDF credit was not used.', 'error', 5000);
