@@ -182,6 +182,8 @@ function logout() {
 }
 
 function showToast(msg, type = 'info', duration = 3000) {
+  // Opening a saved invoice must never claim that a PDF is ready/downloadable.
+  if (String(msg || '').trim() === 'Invoice loaded — ready to download! 🎉') return;
   let c = document.getElementById('toast-container');
   if (!c) {
     c = document.createElement('div');
@@ -259,6 +261,8 @@ function hasInvoiceAccess(user, invoiceId) {
   if ((user.unlockedInvoiceIds || []).includes(String(invoiceId))) return true;
   return (Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0)) > 0;
 }
+// Single authoritative global access predicate for the PDF entitlement manager.
+window.invoiceHasAccess = hasInvoiceAccess;
 
 async function getAuthenticatedUser() {
   const sb = getSupabase();
@@ -343,8 +347,10 @@ function setActiveNav() {
   });
 }
 
-// Invoice Builder gate. It charges a credit only after PDF generation succeeds,
-// and never charges twice for the same invoice.
+// Legacy DOM gate kept for Print and backward compatibility. The production PDF
+// handler in entitlements.js is wrapped again at window load below so that the
+// final function always uses the authoritative access predicate and consumes a
+// credit only after successful PDF generation.
 window.addEventListener('DOMContentLoaded', () => {
   const originalPrint = window.printInvoice;
   const originalPDF = window.downloadPDF;
@@ -394,89 +400,77 @@ window.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  if (typeof originalPDF === 'function') {
-    window.downloadPDF = async function () {
-      const loaded = await loadGateUser();
-      if (!loaded.user) { showToast(loaded.error || 'Please sign in again.', 'error'); return; }
-      const user = loaded.user;
-      const invoiceId = typeof currentDraftId !== 'undefined' ? String(currentDraftId) : ('draft-' + Date.now());
-      if (!hasInvoiceAccess(user, invoiceId)) {
-        if (confirm('Your PDF access is used up.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
+  // Do not replace the dedicated production PDF handler here; it is installed by
+  // entitlements.js during window.load and is wrapped by the strict gate below.
+  void originalPDF;
+});
+
+// Final production gate: entitlements.js installs the dedicated PDF renderer on
+// window.load. This listener is registered after that script, so it wraps the
+// actual final renderer. A signed-in user without credits is always blocked.
+window.addEventListener('load', () => {
+  if (window.__fineInvoiceStrictPdfGateWrapped) return;
+  const productionPDF = window.downloadPDF;
+  if (typeof productionPDF !== 'function') return;
+  window.__fineInvoiceStrictPdfGateWrapped = true;
+
+  window.downloadPDF = async function () {
+    const auth = await getAuthenticatedUser();
+    if (!auth.user) {
+      showToast(auth.error || 'Please sign in again.', 'error', 5000);
+      return;
+    }
+    const remote = auth.user.user_metadata || {};
+    const previous = getCurrentUser() || {};
+    const user = normalizePlanUser({
+      ...previous,
+      id: auth.user.id,
+      email: auth.user.email || previous.email || '',
+      name: remote.name || previous.name || auth.user.email || 'User',
+      plan: remote.plan || previous.plan || 'free',
+      freePdfCredits: remote.freePdfCredits ?? previous.freePdfCredits ?? 0,
+      paidSingleCredits: remote.paidSingleCredits ?? previous.paidSingleCredits ?? 0,
+      unlockedInvoiceIds: remote.unlockedInvoiceIds ?? previous.unlockedInvoiceIds ?? []
+    });
+    saveCurrentUser(user);
+
+    const invoiceId = typeof currentDraftId !== 'undefined'
+      ? String(currentDraftId)
+      : (document.getElementById('invNumber')?.value || 'draft');
+    const plan = String(user.plan || 'free').toLowerCase();
+    const unlocked = Array.isArray(user.unlockedInvoiceIds) && user.unlockedInvoiceIds.map(String).includes(invoiceId);
+    const hasCredits = Number(user.freePdfCredits || 0) > 0 || Number(user.paidSingleCredits || 0) > 0;
+
+    if (plan !== 'lifetime' && !unlocked && !hasCredits) {
+      showToast('No PDF credits remaining. Please purchase a PDF credit or Lifetime Access.', 'error', 5000);
+      if (confirm('You have no PDF credits remaining.\n\nSingle: $2 per PDF\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
+      return;
+    }
+
+    const beforeUnlocked = unlocked;
+    const beforeFree = Number(user.freePdfCredits || 0);
+    const beforePaid = Number(user.paidSingleCredits || 0);
+
+    // The dedicated renderer creates/saves the PDF. It does not consume a credit.
+    await productionPDF();
+
+    // Consume exactly once, only for an invoice that was not already unlocked.
+    // The renderer's successful completion is the point at which a credit is due.
+    if (plan !== 'lifetime' && !beforeUnlocked) {
+      const latest = getCurrentUser() || user;
+      const result = await consumeInvoiceCredit(latest, invoiceId);
+      if (!result.ok) {
+        console.error('FineInvoice credit consumption failed after PDF generation:', result.error);
         return;
       }
-      const alreadyUnlocked = String(user.plan || 'free').toLowerCase() === 'lifetime' || (user.unlockedInvoiceIds || []).includes(invoiceId);
-      showToast('Generating PDF…', 'info');
-      try {
-        const el = document.getElementById('invoiceDoc');
-        if (!el) throw new Error('Invoice preview not found');
-        const previousHeight = el.style.height;
-        const previousOverflow = el.style.overflow;
-        el.style.height = 'auto';
-        el.style.overflow = 'visible';
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        const canvas = await html2canvas(el, {
-          scale: 2, useCORS: true, backgroundColor: '#ffffff',
-          width: el.scrollWidth, height: el.scrollHeight,
-          windowWidth: Math.max(document.documentElement.clientWidth, el.scrollWidth),
-          windowHeight: Math.max(window.innerHeight, el.scrollHeight),
-          scrollX: 0, scrollY: -window.scrollY
-        });
-        el.style.height = previousHeight;
-        el.style.overflow = previousOverflow;
-
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pageW = doc.internal.pageSize.getWidth();
-        const pageH = doc.internal.pageSize.getHeight();
-        const imgH = (canvas.height * pageW) / canvas.width;
-        const docRect = el.getBoundingClientRect();
-        const totalsEl = el.querySelector('.inv-totals');
-        const footerEl = el.querySelector('.inv-footer');
-        const pxToMm = pageW / Math.max(1, el.scrollWidth);
-        const totalsTopMm = totalsEl ? Math.max(0, (totalsEl.getBoundingClientRect().top - docRect.top) * pxToMm) : null;
-        const totalsBottomMm = footerEl
-          ? Math.max(0, (footerEl.getBoundingClientRect().bottom - docRect.top) * pxToMm)
-          : (totalsEl ? Math.max(0, (totalsEl.getBoundingClientRect().bottom - docRect.top) * pxToMm) : null);
-
-        let renderedHeight = 0;
-        while (renderedHeight < imgH - 0.01) {
-          let sliceHeight = Math.min(pageH, imgH - renderedHeight);
-          const pageBottom = renderedHeight + sliceHeight;
-          if (totalsTopMm !== null && totalsBottomMm !== null && totalsTopMm > renderedHeight + 1 && totalsTopMm < pageBottom - 1 && totalsBottomMm > pageBottom) {
-            const beforeTotals = totalsTopMm - renderedHeight;
-            if (beforeTotals > 1) sliceHeight = beforeTotals;
-          }
-          const sourceY = Math.floor((renderedHeight * canvas.width) / pageW);
-          const sourceHeight = Math.max(1, Math.min(canvas.height - sourceY, Math.floor((sliceHeight * canvas.width) / pageW)));
-          const sliceCanvas = document.createElement('canvas');
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = sourceHeight;
-          const ctx = sliceCanvas.getContext('2d');
-          if (!ctx) throw new Error('PDF canvas unavailable');
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
-          if (renderedHeight > 0) doc.addPage();
-          doc.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, (sourceHeight * pageW) / canvas.width);
-          renderedHeight += sliceHeight;
-        }
-
-        const invNum = document.getElementById('invNumber')?.value || 'invoice';
-        doc.save(invNum + '.pdf');
-
-        if (!alreadyUnlocked && String(user.plan || 'free').toLowerCase() !== 'lifetime') {
-          const result = await consumeInvoiceCredit(user, invoiceId);
-          if (!result.ok) { showToast(result.error || 'Could not save PDF credit', 'error'); return; }
-        }
-        const downloads = parseInt(localStorage.getItem('fi_downloads') || '0', 10) + 1;
-        localStorage.setItem('fi_downloads', String(downloads));
-        showToast('PDF downloaded! 🎉', 'success');
-      } catch (error) {
-        console.error(error);
-        showToast('PDF generation failed. Your PDF credit was not used.', 'error', 5000);
-      }
-    };
-  }
+      console.log('FineInvoice PDF credit consumed:', {
+        beforeFree, beforePaid,
+        afterFree: result.freePdfCredits,
+        afterPaid: result.paidSingleCredits
+      });
+      refreshEntitlementUI(false);
+    }
+  };
 });
 
 function refreshEntitlementUI(showNotice = false) {
