@@ -20,24 +20,21 @@
     const p = payloadOf(row);
     return p.legacy_id != null ? String(p.legacy_id) : '';
   }
+  function isUuid(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+  }
+
+  // IMPORTANT: public.invoices contains only these columns. All builder-specific
+  // fields live inside payload so schema changes cannot break invoice saving.
   function toRow(invoice, userId, existingId) {
     return {
       ...(existingId ? { id: existingId } : {}),
       user_id: userId,
-      inv_number: invoice.invNumber || invoice.invoice_number || null,
-      company: invoice.company || null,
-      customer: invoice.customer || null,
-      cust_email: invoice.custEmail || null,
-      currency: invoice.currency || null,
-      total: Number(invoice.total || 0),
-      items: Array.isArray(invoice.items) ? invoice.items : [],
-      tax: Number(invoice.tax || 0),
-      discount: Number(invoice.discount || 0),
-      notes: invoice.notes || null,
-      theme_color: invoice.themeColor || null,
-      due_date: invoice.dueDate || null,
-      inv_date: invoice.invDate || null,
+      invoice_number: invoice.invNumber || invoice.invoice_number || null,
+      customer_id: invoice.customer_id || null,
       status: invoice.status || 'saved',
+      currency: invoice.currency || 'USD',
+      total: Number(invoice.total || 0),
       payload: { ...invoice, legacy_id: invoice.id != null ? String(invoice.id) : null }
     };
   }
@@ -48,9 +45,11 @@
     const wanted = String(id || '');
     if (!wanted) return { data: null, error: null };
 
-    const byId = await client.from('invoices').select('*').eq('user_id', user.id).eq('id', wanted).maybeSingle();
-    if (byId.error) return byId;
-    if (byId.data) return byId;
+    if (isUuid(wanted)) {
+      const byId = await client.from('invoices').select('*').eq('user_id', user.id).eq('id', wanted).maybeSingle();
+      if (byId.error) return byId;
+      if (byId.data) return byId;
+    }
 
     return client.from('invoices').select('*').eq('user_id', user.id).filter('payload->>legacy_id', 'eq', wanted).maybeSingle();
   }
@@ -61,15 +60,12 @@
     const legacy = invoice.id != null ? String(invoice.id) : '';
     let existing = null;
 
-    // First try the actual Supabase UUID. This matters when an invoice was opened
-    // from the cloud list and currentDraftId is now the cloud row id.
-    if (legacy) {
+    if (isUuid(legacy)) {
       const byId = await client.from('invoices').select('id').eq('user_id', user.id).eq('id', legacy).maybeSingle();
       if (byId.error) return { data: null, error: byId.error };
       existing = byId.data?.id || null;
     }
 
-    // Then try the original browser/local invoice id stored in payload.
     if (!existing && legacy) {
       const byLegacy = await client.from('invoices').select('id').eq('user_id', user.id).filter('payload->>legacy_id', 'eq', legacy).maybeSingle();
       if (byLegacy.error) return { data: null, error: byLegacy.error };
@@ -93,9 +89,13 @@
     if (!client || !user) return { error: { message: 'Not authenticated' } };
     const wanted = String(id || '');
     if (!wanted) return { error: { message: 'Invoice id is missing.' } };
-    const direct = await client.from('invoices').delete().eq('id', wanted).eq('user_id', user.id);
-    if (direct.error) return direct;
-    return direct;
+    if (isUuid(wanted)) {
+      return client.from('invoices').delete().eq('id', wanted).eq('user_id', user.id);
+    }
+    const found = await client.from('invoices').select('id').eq('user_id', user.id).filter('payload->>legacy_id', 'eq', wanted).maybeSingle();
+    if (found.error) return { error: found.error };
+    if (!found.data?.id) return { error: { message: 'Invoice not found.' } };
+    return client.from('invoices').delete().eq('id', found.data.id).eq('user_id', user.id);
   }
 
   window.fineInvoiceCloud = { loadCloudInvoices, saveCloudInvoice, findCloudInvoice, deleteCloudInvoice };
@@ -157,12 +157,16 @@
       const result = await saveCloudInvoice(invoice);
       if (result.error) {
         console.error('Cloud invoice save failed:', result.error);
-        showToast('Invoice could not be saved to your account.', 'error', 5000);
+        showToast(result.error.message || 'Invoice could not be saved to your account.', 'error', 5000);
         return;
       }
       const cloudId = result.data?.id;
-      if (cloudId) invoice.cloudId = cloudId;
-      // Keep the browser cache too, but never touch entitlement/credit fields here.
+      if (cloudId) {
+        invoice.cloudId = cloudId;
+        if (!new URLSearchParams(location.search).get('invoice')) {
+          window.currentDraftId = String(cloudId);
+        }
+      }
       cacheInvoice(invoice);
       showToast('Invoice saved securely to your account ✅', 'success');
     };
@@ -173,34 +177,25 @@
         const result = await findCloudInvoice(invoiceParam);
         if (!result.error && result.data) {
           const row = result.data, p = payloadOf(row);
-          if (document.getElementById('company')) document.getElementById('company').value = p.company ?? row.company ?? '';
-          if (document.getElementById('customer')) document.getElementById('customer').value = p.customer ?? row.customer ?? '';
+          if (document.getElementById('company')) document.getElementById('company').value = p.company ?? '';
+          if (document.getElementById('customer')) document.getElementById('customer').value = p.customer ?? '';
           if (document.getElementById('bizEmail')) document.getElementById('bizEmail').value = p.bizEmail ?? '';
-          if (document.getElementById('custEmail')) document.getElementById('custEmail').value = p.custEmail ?? row.cust_email ?? '';
+          if (document.getElementById('custEmail')) document.getElementById('custEmail').value = p.custEmail ?? '';
           if (document.getElementById('custAddress')) document.getElementById('custAddress').value = p.custAddress ?? '';
           if (document.getElementById('currency')) document.getElementById('currency').value = p.currency ?? row.currency ?? 'USD';
-          if (document.getElementById('invNumber')) document.getElementById('invNumber').value = p.invNumber ?? row.inv_number ?? '';
-          if (document.getElementById('invDate')) document.getElementById('invDate').value = p.invDate ?? row.inv_date ?? '';
-          if (document.getElementById('dueDate')) document.getElementById('dueDate').value = p.dueDate ?? row.due_date ?? '';
-          if (document.getElementById('notes')) document.getElementById('notes').value = p.notes ?? row.notes ?? '';
+          if (document.getElementById('invNumber')) document.getElementById('invNumber').value = p.invNumber ?? row.invoice_number ?? '';
+          if (document.getElementById('invDate')) document.getElementById('invDate').value = p.invDate ?? '';
+          if (document.getElementById('dueDate')) document.getElementById('dueDate').value = p.dueDate ?? '';
+          if (document.getElementById('notes')) document.getElementById('notes').value = p.notes ?? '';
           if (Array.isArray(p.items) && document.getElementById('itemsBody')) {
             document.getElementById('itemsBody').innerHTML = '';
             p.items.forEach(item => {
-              if (typeof window.addItem === 'function') window.addItem();
-              const tr = document.getElementById('itemsBody').lastElementChild, ins = tr?.querySelectorAll('input');
-              if (ins) {
-                ins[0].value = item.desc || '';
-                ins[1].value = item.qty || 1;
-                ins[2].value = item.unit || '';
-                ins[3].value = item.rate || 0;
-                ins[4].value = item.itemTax || 0;
-                ins[5].value = item.itemDisc || 0;
-              }
+              if (typeof window.addItem === 'function') window.addItem(item);
             });
           }
           if (typeof window.livePreview === 'function') window.livePreview();
           window.currentDraftId = String(row.id);
-          cacheInvoice({ ...p, id: String(row.id), invNumber: p.invNumber ?? row.inv_number, customer: p.customer ?? row.customer, company: p.company ?? row.company, currency: p.currency ?? row.currency, total: Number(row.total || p.total || 0) });
+          cacheInvoice({ ...p, id: String(row.id), invNumber: p.invNumber ?? row.invoice_number, customer: p.customer ?? '', company: p.company ?? '', currency: p.currency ?? row.currency, total: Number(row.total || p.total || 0) });
         }
       } catch (e) {
         console.warn('Cloud invoice hydration failed:', e);
@@ -251,10 +246,10 @@
     const sym = { PKR: '₨', USD: '$', EUR: '€', AED: 'AED ', GBP: '£' };
     const esc = typeof escapeHtml === 'function' ? escapeHtml : s => String(s ?? '');
     table.innerHTML = rows.map(row => {
-      const p = payloadOf(row), num = row.inv_number || p.invNumber || row.id, currency = row.currency || p.currency || 'USD';
+      const p = payloadOf(row), num = row.invoice_number || p.invNumber || row.id, currency = row.currency || p.currency || 'USD';
       const amount = `${sym[currency] || currency + ' '}${Number(row.total || p.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-      const date = row.inv_date || p.invDate || row.created_at;
-      return `<tr><td><span class="mono" style="font-size:13px;font-weight:600">${esc(num)}</span></td><td><strong>${esc(row.company || p.company || '—')}</strong></td><td>${esc(row.customer || p.customer || '—')}</td><td style="color:var(--muted);font-size:13px">${date ? new Date(date).toLocaleDateString('en-GB') : '—'}</td><td><span class="inv-amount">${amount}</span></td><td><span class="status-badge status-${esc(row.status || 'saved')}">${row.status === 'paid' ? '✅ Paid' : '📄 Saved'}</span></td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="openInvoice('${String(row.id)}')">📂 Open</button><button class="btn btn-danger btn-sm" onclick="fineInvoiceDelete('${String(row.id)}')">🗑️</button></div></td></tr>`;
+      const date = p.invDate || row.created_at;
+      return `<tr><td><span class="mono" style="font-size:13px;font-weight:600">${esc(num)}</span></td><td><strong>${esc(p.company || '—')}</strong></td><td>${esc(p.customer || '—')}</td><td style="color:var(--muted);font-size:13px">${date ? new Date(date).toLocaleDateString('en-GB') : '—'}</td><td><span class="inv-amount">${amount}</span></td><td><span class="status-badge status-${esc(row.status || 'saved')}">${row.status === 'paid' ? '✅ Paid' : '📄 Saved'}</span></td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="openInvoice('${String(row.id)}')">📂 Open</button><button class="btn btn-danger btn-sm" onclick="fineInvoiceDelete('${String(row.id)}')">🗑️</button></div></td></tr>`;
     }).join('');
     window.openInvoice = id => { location.href = 'app.html?invoice=' + encodeURIComponent(id); };
     window.fineInvoiceDelete = async id => {
