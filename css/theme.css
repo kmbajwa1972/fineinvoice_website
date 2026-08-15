@@ -629,3 +629,18 @@ tr:hover td { background: var(--bg); }
   .sidebar-overlay.open{display:block;}
   .mobile-menu-btn{display:flex;}
 }
+
+
+/* FineInvoice invoice preview height expansion */
+/* This changes the canvas/page height, not the font size. */
+.preview-sticky { align-self: start; }
+.preview-wrap { min-height: 1100px !important; }
+.preview-body { min-height: 1040px !important; padding: 24px !important; }
+#invoiceDoc { min-height: 1040px !important; }
+.invoice-paper { min-height: 1040px !important; }
+
+@media print {
+  body.print-mode .preview-body { min-height: 0 !important; padding: 0 !important; }
+  body.print-mode #invoiceDoc { min-height: 1040px !important; }
+  body.print-mode .invoice-paper { min-height: 1040px !important; }
+}
