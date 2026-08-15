@@ -5,9 +5,8 @@
 (function () {
   'use strict';
 
-  // js/utils.js contains a legacy second PDF wrapper. Tell it not to wrap the
-  // production download function again; otherwise one free PDF can consume
-  // two credits and previously unlocked invoices can appear locked.
+  // Disable the legacy second PDF wrapper in utils.js. It otherwise consumes
+  // a credit before the real generator and can consume twice.
   window.__fineInvoiceStrictPdfGateWrapped = true;
 
   function aliasesForCurrentInvoice() {
@@ -15,9 +14,7 @@
     const add = value => {
       if (value !== undefined && value !== null && String(value).trim() !== '') ids.add(String(value));
     };
-
     if (typeof currentDraftId !== 'undefined') add(currentDraftId);
-
     const requested = new URLSearchParams(location.search).get('invoice');
     add(requested);
 
@@ -34,16 +31,33 @@
         add(match.invoice_number);
       }
     }
-
     add(document.getElementById('invNumber')?.value);
     return [...ids];
+  }
+
+  function isLegacyUnlocked(user) {
+    // Compatibility repair for the three PDFs already generated before the
+    // persistent entitlement identity was stabilized. If the old download
+    // counter confirms three completed free downloads, the first three saved
+    // invoices are treated as already unlocked. New invoice #4 remains gated.
+    if (String(user?.plan || 'free').toLowerCase() !== 'free') return false;
+    const oldDownloads = parseInt(localStorage.getItem('fi_downloads') || '0', 10);
+    if (oldDownloads < 3 || typeof getInvoices !== 'function') return false;
+    const invoices = getInvoices();
+    if (!Array.isArray(invoices) || !invoices.length) return false;
+    const firstThree = [...invoices]
+      .filter(Boolean)
+      .sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0))
+      .slice(0, 3);
+    const aliases = new Set(aliasesForCurrentInvoice());
+    return firstThree.some(inv => [inv.id, inv.entitlementId, inv.invNumber, inv.invoice_number].some(v => v != null && aliases.has(String(v))));
   }
 
   function userUnlocked(user) {
     const unlocked = Array.isArray(user?.unlockedInvoiceIds)
       ? user.unlockedInvoiceIds.map(String)
       : [];
-    return aliasesForCurrentInvoice().some(id => unlocked.includes(id));
+    return aliasesForCurrentInvoice().some(id => unlocked.includes(id)) || isLegacyUnlocked(user);
   }
 
   function currentInvoiceId() {
@@ -51,8 +65,7 @@
     return aliases[0] || String(document.getElementById('invNumber')?.value || 'draft');
   }
 
-  // Override the global access helper so old invoices whose stored entitlement
-  // ID differs from their current URL ID still resolve to the same entitlement.
+  // Stable entitlement lookup for old and new saved invoices.
   window.invoiceHasAccess = function (user) {
     if (!user) return false;
     const plan = String(user.plan || 'free').toLowerCase();
@@ -61,27 +74,22 @@
     return Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0) > 0;
   };
 
-  // The print wrapper in utils.js calls consumeInvoiceCredit(). Replace it with
-  // an alias-aware version so printing and PDF use the same persistent identity.
+  // Make the print wrapper in utils.js use the same stable aliases. The credit
+  // is consumed once by the original function, then aliases are persisted.
   window.addEventListener('load', function () {
     if (typeof consumeInvoiceCredit === 'function') {
       const originalConsume = consumeInvoiceCredit;
       window.consumeInvoiceCredit = async function (user, invoiceId) {
-        const beforeAliases = aliasesForCurrentInvoice();
-        const canonical = beforeAliases[0] || String(invoiceId || currentInvoiceId());
+        const aliases = aliasesForCurrentInvoice();
+        const canonical = aliases[0] || String(invoiceId || currentInvoiceId());
         const result = await originalConsume(user, canonical);
         if (!result?.ok || result.alreadyUnlocked || user?.plan === 'lifetime') return result;
 
-        // Preserve every known identity for this saved invoice. This is only an
-        // alias update; the credit was consumed exactly once above.
-        const aliases = [...new Set([...beforeAliases, canonical])];
-        const unlocked = [...new Set([...(user.unlockedInvoiceIds || []).map(String), ...aliases])];
+        const unlocked = [...new Set([...(user.unlockedInvoiceIds || []).map(String), ...aliases, canonical])];
         const sb = typeof getSupabase === 'function' ? getSupabase() : null;
         if (sb) {
           try {
-            const { error } = await sb.auth.updateUser({
-              data: { unlockedInvoiceIds: unlocked }
-            });
+            const { error } = await sb.auth.updateUser({ data: { unlockedInvoiceIds: unlocked } });
             if (error) console.warn('FineInvoice entitlement alias sync failed:', error);
           } catch (error) {
             console.warn('FineInvoice entitlement alias sync failed:', error);
@@ -93,9 +101,7 @@
       };
     }
 
-    // Restore a fuller A4 print scale. The document remains one A4 sheet;
-    // this only prevents the compact screen styling from making print output
-    // unnecessarily tiny.
+    // Restore the fuller A4 print scale while keeping the one-page A4 format.
     const style = document.createElement('style');
     style.textContent = `
       @media print {
@@ -117,14 +123,13 @@
   });
 
   // Use the builder's existing generatePDF() routine so the current invoice
-  // layout, blank-row filtering and A4 handling stay intact. We only own the
-  // entitlement gate here.
+  // design and blank-row filtering remain unchanged. This file owns only the
+  // entitlement gate and credit accounting.
   window.addEventListener('load', function () {
     window.downloadPDF = async function () {
       const user = typeof getInvoiceAccessUser === 'function'
         ? await getInvoiceAccessUser()
         : (typeof getCurrentUser === 'function' ? getCurrentUser() : null);
-
       if (!user) {
         showToast('Please sign in again to create a PDF.', 'error', 5000);
         return;
@@ -137,9 +142,7 @@
 
       if (!lifetime && !unlocked && credits <= 0) {
         showToast('No PDF credits remaining. Please purchase a PDF credit or Lifetime Access.', 'error', 5000);
-        if (confirm('You have no PDF credits remaining.\n\nSingle: $2 per PDF\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) {
-          location.href = 'payment.html';
-        }
+        if (confirm('You have no PDF credits remaining.\n\nSingle: $2 per PDF\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
         return;
       }
 
@@ -149,8 +152,6 @@
         const doc = await generatePDF();
         if (!doc || typeof doc.save !== 'function') throw new Error('PDF generation failed');
 
-        // Consume only after successful PDF creation. Re-downloading an
-        // already-unlocked invoice never consumes another credit.
         if (!lifetime && !unlocked) {
           const result = await consumeInvoiceCredit(user, invoiceId);
           if (!result?.ok) {
@@ -159,8 +160,7 @@
           }
         }
 
-        const number = String(document.getElementById('invNumber')?.value || 'invoice')
-          .replace(/[^a-z0-9._-]/gi, '_');
+        const number = String(document.getElementById('invNumber')?.value || 'invoice').replace(/[^a-z0-9._-]/gi, '_');
         doc.save(number + '.pdf');
         localStorage.setItem('fi_downloads', String(parseInt(localStorage.getItem('fi_downloads') || '0', 10) + 1));
         showToast('PDF downloaded! 🎉', 'success');
