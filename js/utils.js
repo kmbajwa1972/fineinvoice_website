@@ -86,6 +86,6 @@ window.addEventListener('fineinvoice:entitlement-updated',()=>refreshEntitlement
 function forceDashboardEntitlementUI(){if(!document.getElementById('planVal')&&!document.getElementById('planName'))return;const user=getCurrentUser();if(!user)return;const plan=String(user.plan||'free').toUpperCase(),planVal=document.getElementById('planVal'),planName=document.getElementById('planName'),count=document.getElementById('downloadCount'),label=document.getElementById('downloadLbl');if(planVal)planVal.textContent=plan;if(planName)planName.textContent=plan;if(count&&label){if(plan==='LIFETIME'){count.textContent='Unlimited';label.textContent='PDF Credits';}else{count.textContent=String(Number(user.freePdfCredits||0)+Number(user.paidSingleCredits||0));label.textContent='PDF Credits Left';}}}
 window.addEventListener('fineinvoice:entitlement-updated',forceDashboardEntitlementUI);window.addEventListener('DOMContentLoaded',()=>{forceDashboardEntitlementUI();setInterval(()=>{syncEntitlementsNow().finally(forceDashboardEntitlementUI);},2000);});window.addEventListener('DOMContentLoaded',startEntitlementSync);
 
-// Load the cloud invoice persistence layer on every page that loads utils.js.
-// document.write keeps the script parser-blocking so its load handler is registered before page load.
-if(!window.__fineInvoiceCloudScriptLoaded){window.__fineInvoiceCloudScriptLoaded=true;document.write('<script src="js/cloud-data.js"><\\/script>');}
+// Load cloud invoice persistence on every page that loads utils.js.
+// Keep the injected tag parser-safe while utils.js itself is parser-blocking.
+if(!window.__fineInvoiceCloudScriptLoaded){window.__fineInvoiceCloudScriptLoaded=true;document.write('<script src="js/cloud-data.js"><' + '/script>');}
