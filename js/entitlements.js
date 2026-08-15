@@ -102,9 +102,6 @@
       throw new Error('PDF engine unavailable');
     }
 
-    // Capture only the invoice paper. Capturing #invoiceDoc previously included
-    // the preview container's empty/min-height area, making the actual invoice
-    // appear unnecessarily small on the A4 PDF.
     const paper = document.querySelector('#invoiceDoc .invoice-paper');
     if (!paper) throw new Error('Invoice is empty');
 
@@ -231,5 +228,77 @@
         showToast('PDF generation failed. Your PDF credit was not used.', 'error', 5000);
       }
     };
+  });
+
+  // Final entitlement guard: utils.js also wraps downloadPDF/printInvoice on
+  // window load. Because utils.js is loaded after this file, its load handler
+  // otherwise wins and can incorrectly block INV-001..INV-003 after the three
+  // free credits are exhausted. Re-apply the correct gate after every load
+  // handler has run, without changing the normal 3-free-invoice business rule.
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      window.downloadPDF = async function () {
+        const user = await loadGateUser();
+        if (!user) {
+          showToast('Please sign in again to create a PDF.', 'error', 5000);
+          return;
+        }
+
+        const invoiceId = currentInvoiceId();
+        const unlocked = userUnlocked(user);
+        const lifetime = String(user.plan || 'free').toLowerCase() === 'lifetime';
+        const credits = Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0);
+
+        if (!lifetime && !unlocked && credits <= 0) {
+          if (confirm('No PDF credits remain.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
+          return;
+        }
+
+        showToast('Generating PDF…', 'info');
+        try {
+          const doc = await makeSizedPdf();
+          if (!lifetime && !unlocked) {
+            const result = await consumeInvoiceCredit(user, invoiceId);
+            if (!result?.ok) {
+              showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000);
+              return;
+            }
+          }
+          const number = String(document.getElementById('invNumber')?.value || 'invoice').replace(/[^a-z0-9._-]/gi, '_');
+          doc.save(number + '.pdf');
+          localStorage.setItem('fi_downloads', String(parseInt(localStorage.getItem('fi_downloads') || '0', 10) + 1));
+          showToast('PDF downloaded! 🎉', 'success');
+        } catch (error) {
+          console.error('FineInvoice PDF generation failed:', error);
+          showToast('PDF generation failed. Your PDF credit was not used.', 'error', 5000);
+        }
+      };
+
+      window.printInvoice = async function () {
+        const user = await loadGateUser();
+        if (!user) {
+          showToast('Please sign in again to print.', 'error', 5000);
+          return;
+        }
+        const invoiceId = currentInvoiceId();
+        const unlocked = userUnlocked(user);
+        const lifetime = String(user.plan || 'free').toLowerCase() === 'lifetime';
+        const credits = Number(user.freePdfCredits || 0) + Number(user.paidSingleCredits || 0);
+        if (!lifetime && !unlocked && credits <= 0) {
+          if (confirm('No PDF credits remain.\n\nSingle: $2 per invoice\nor Lifetime: $25 unlimited.\n\nGo to Billing?')) location.href = 'payment.html';
+          return;
+        }
+        if (!lifetime && !unlocked) {
+          const result = await consumeInvoiceCredit(user, invoiceId);
+          if (!result?.ok) {
+            showToast(result?.error || 'Could not save PDF entitlement.', 'error', 6000);
+            return;
+          }
+        }
+        document.body.classList.add('print-mode');
+        window.print();
+        setTimeout(() => document.body.classList.remove('print-mode'), 800);
+      };
+    }, 0);
   });
 })();
