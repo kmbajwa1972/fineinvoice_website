@@ -63,4 +63,15 @@
       };
     }
   });
+
+  // Suppress repeated post-payment activation toasts. The actual plan and credit
+  // state remain unchanged; the dashboard already displays those values.
+  const fineInvoiceToast=window.showToast;
+  if(typeof fineInvoiceToast==='function'){
+    window.showToast=function(msg,type,duration){
+      const text=String(msg||'');
+      if(/^(Single|Lifetime) plan activated\b/i.test(text))return;
+      return fineInvoiceToast.apply(this,arguments);
+    };
+  }
 })();
