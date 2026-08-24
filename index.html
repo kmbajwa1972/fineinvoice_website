@@ -557,8 +557,8 @@
 
 const u = getCurrentUser();
 if(u) window.location.href = 'dashboard.html';
-<script src="js/footer-loader.js"></script>
-// Promo bar can be dismissed; remember that choice.
+
+  // Promo bar can be dismissed; remember that choice.
 if(localStorage.getItem('fi_banner_dismissed')){
   document.getElementById('promoBar').classList.add('hidden');
 }
@@ -592,5 +592,6 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
 }
 </script>
+  <script src="js/footer-loader.js"></script>
 </body>
 </html>
