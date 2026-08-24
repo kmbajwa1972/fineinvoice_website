@@ -554,10 +554,10 @@
 
 <script src="js/utils.js"></script>
 <script>
-<script src="js/footer-loader.js"></script>
+
 const u = getCurrentUser();
 if(u) window.location.href = 'dashboard.html';
-
+<script src="js/footer-loader.js"></script>
 // Promo bar can be dismissed; remember that choice.
 if(localStorage.getItem('fi_banner_dismissed')){
   document.getElementById('promoBar').classList.add('hidden');
