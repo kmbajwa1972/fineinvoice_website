@@ -1,4 +1,5 @@
 User-agent: *
+Allow: /
 Disallow: /admin.html
 Disallow: /dashboard.html
 Disallow: /app.html
