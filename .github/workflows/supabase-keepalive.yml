@@ -1,6 +1,9 @@
 name: Supabase Keepalive
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 3 days to keep the FineInvoice Supabase project active.
     - cron: '17 5 */3 * *'
