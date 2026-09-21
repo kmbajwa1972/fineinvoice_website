@@ -21,7 +21,7 @@
 <div class="auth-footer">Already have an account? <a href="signin.html" class="auth-link">Sign in</a><br><a href="index.html" class="auth-link">← Back to home</a></div>
 </div>
 <div class="auth-illus"><div class="illus-content"><div class="credit-pill">✦ 3 FREE PDF / PRINT USES</div><h2>Everything You Need to Invoice Professionally</h2><p>Create, save and manage invoices before you pay for a download.</p><div class="benefit-card"><div class="benefit"><h3>📄 3 free PDF / Print uses</h3><p>Your free entitlement is saved to your account.</p></div><div class="benefit"><h3>⚡ Build invoices in minutes</h3><p>Professional layouts and invoice history.</p></div><div class="benefit"><h3>💳 Secure card payments</h3><p>Purchase additional PDF credits or Lifetime Access through Polar.</p></div><div class="benefit"><h3>🔐 Your account, your data</h3><p>Authentication and entitlements are managed securely through Supabase.</p></div></div></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="js/utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';document.head.appendChild(s);"></script><script src="js/utils.js"></script>
 <script>
 async function doSignup(){
  const name=document.getElementById('name').value.trim(),email=document.getElementById('email').value.trim(),password=document.getElementById('password').value;
@@ -29,7 +29,7 @@ async function doSignup(){
  if(password.length<8){showToast('Password must be at least 8 characters','error');return}
  const btn=document.getElementById('signupBtn');btn.disabled=true;btn.textContent='Creating account…';
  try{
-  const sb=getSupabase();if(!sb)throw new Error('Authentication service is unavailable. Please try again.');
+  await ensureSupabase(); const sb=getSupabase();if(!sb)throw new Error('Authentication service is unavailable. Please check your connection and try again.');
   const metadata={name,plan:'free',planVerified:false,paymentProvider:null,freePdfCredits:3,paidSingleCredits:0,singleCredits:3,unlockedInvoiceIds:[]};
   const {data,error}=await sb.auth.signUp({email,password,options:{data:metadata}});
   if(error)throw error;
