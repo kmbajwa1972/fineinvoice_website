@@ -21,8 +21,17 @@
 <div class="auth-footer">Already have an account? <a href="signin.html" class="auth-link">Sign in</a><br><a href="index.html" class="auth-link">← Back to home</a></div>
 </div>
 <div class="auth-illus"><div class="illus-content"><div class="credit-pill">✦ 3 FREE PDF / PRINT USES</div><h2>Everything You Need to Invoice Professionally</h2><p>Create, save and manage invoices before you pay for a download.</p><div class="benefit-card"><div class="benefit"><h3>📄 3 free PDF / Print uses</h3><p>Your free entitlement is saved to your account.</p></div><div class="benefit"><h3>⚡ Build invoices in minutes</h3><p>Professional layouts and invoice history.</p></div><div class="benefit"><h3>💳 Secure card payments</h3><p>Purchase additional PDF credits or Lifetime Access through Polar.</p></div><div class="benefit"><h3>🔐 Your account, your data</h3><p>Authentication and entitlements are managed securely through Supabase.</p></div></div></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';document.head.appendChild(s);"></script><script src="js/utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';document.head.appendChild(s);"></script><script src="js/utils.js?v=20260921-auth"></script>
 <script>
+window.ensureSupabase=window.ensureSupabase||function(timeoutMs=8000){
+  if(window.supabase&&typeof window.supabase.createClient==='function')return Promise.resolve(true);
+  return new Promise(resolve=>{
+    const existing=document.querySelector('script[data-fineinvoice-supabase-fallback]');
+    const finish=()=>resolve(Boolean(window.supabase&&typeof window.supabase.createClient==='function'));
+    if(existing){const started=Date.now();const check=()=>{if(window.supabase&&typeof window.supabase.createClient==='function')return resolve(true);if(Date.now()-started>=timeoutMs)return finish();setTimeout(check,100)};check();return;}
+    const s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';s.async=true;s.dataset.fineinvoiceSupabaseFallback='1';s.onload=finish;s.onerror=finish;document.head.appendChild(s);setTimeout(finish,timeoutMs);
+  });
+};
 async function doSignup(){
  const name=document.getElementById('name').value.trim(),email=document.getElementById('email').value.trim(),password=document.getElementById('password').value;
  if(!name||!email||!password){showToast('Please fill all fields','error');return}
