@@ -2,6 +2,31 @@
 const SUPABASE_URL = 'https://mozllscpvaxdigatsxiu.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_r_O7AsGp8D91rDquxrCJrw_7OMCI6kG';
 
+function ensureSupabase(timeoutMs=8000) {
+  if (window.supabase?.createClient) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const existing=document.querySelector('script[data-fineinvoice-supabase-fallback]');
+    if (existing) {
+      const started=Date.now();
+      const check=()=> {
+        if (window.supabase?.createClient) return resolve(true);
+        if (Date.now()-started>=timeoutMs) return resolve(false);
+        setTimeout(check,100);
+      };
+      check();
+      return;
+    }
+    const script=document.createElement('script');
+    script.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';
+    script.async=true;
+    script.dataset.fineinvoiceSupabaseFallback='1';
+    script.onload=()=>resolve(Boolean(window.supabase?.createClient));
+    script.onerror=()=>resolve(false);
+    document.head.appendChild(script);
+    setTimeout(()=>resolve(Boolean(window.supabase?.createClient)),timeoutMs);
+  });
+}
+
 function getSupabase() {
   if (window._supabase) return window._supabase;
   if (!window.supabase?.createClient) return null;
