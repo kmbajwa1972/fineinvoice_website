@@ -45,7 +45,7 @@ async function doSignup(){
   if(!data.user)throw new Error('Account could not be created. Please try again.');
   saveCurrentUser({id:data.user.id,email:data.user.email||email,name,plan:'free',planVerified:false,paymentProvider:null,freePdfCredits:3,paidSingleCredits:0,singleCredits:3,unlockedInvoiceIds:[]});
   if(!data.session){
-   showToast('Account created. Please verify your email, then sign in.','success',5000);
+   showToast('Account created. Please sign in.','success',4000);
    setTimeout(()=>location.href='signin.html',1200);
    return;
   }
