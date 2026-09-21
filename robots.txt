@@ -10,5 +10,8 @@ Disallow: /templates.html
 Disallow: /receipt.html
 Disallow: /payment.html
 Disallow: /signin.html
+Disallow: /signup.html
+Disallow: /reset-password.html
+Disallow: /update-password.html
 
 Sitemap: https://fineinvoice.com/sitemap.xml
