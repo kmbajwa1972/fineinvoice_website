@@ -438,6 +438,13 @@ footer a:hover{text-decoration:underline}
   gate.addEventListener('click', function(e){ if (e.target === gate) gate.close(); });
 
   buildItems(); buildSwatches(); render();
+  // Keep the parent homepage iframe fitted to the content, including on mobile.
+  function reportHeight(){
+    try { if(window.parent&&window.parent!==window) window.parent.postMessage({type:'fineinvoice-trial-height',height:Math.ceil(document.documentElement.scrollHeight)},window.location.origin); } catch(e) {}
+  }
+  window.addEventListener('load',reportHeight);
+  window.addEventListener('resize',reportHeight);
+  if(window.ResizeObserver){new ResizeObserver(reportHeight).observe(document.body);}
 })();
 </script>
 </body>
