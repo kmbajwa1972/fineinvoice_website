@@ -16,7 +16,7 @@
 <div class="form-group"><label class="form-label">Full name</label><input class="form-input" id="name" placeholder="Your full name" autocomplete="name"></div>
 <div class="form-group"><label class="form-label">Email address</label><input class="form-input" id="email" type="email" placeholder="you@example.com" autocomplete="email"></div>
 <div class="form-group"><label class="form-label">Password</label><input class="form-input" id="password" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
-<button class="btn-signup" id="signupBtn" onclick="doSignup()">Create Free Account →</button>
+<button class="btn-signup" id="googleBtn" onclick="signInWithGoogle()" style="margin-bottom:12px;background:#fff;color:#201a35;border:1px solid #ded9ed">Continue with Google</button><button class="btn-signup" id="signupBtn" onclick="doSignup()">Create Free Account →</button>
 <div class="terms">By creating an account, you agree to use FineInvoice responsibly and keep your login details secure.</div>
 <div class="auth-footer">Already have an account? <a href="signin.html" class="auth-link">Sign in</a><br><a href="index.html" class="auth-link">← Back to home</a></div>
 </div>
@@ -32,6 +32,14 @@ window.ensureSupabase=window.ensureSupabase||function(timeoutMs=8000){
     const s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';s.async=true;s.dataset.fineinvoiceSupabaseFallback='1';s.onload=finish;s.onerror=finish;document.head.appendChild(s);setTimeout(finish,timeoutMs);
   });
 };
+
+async function signInWithGoogle(){
+ const btn=document.getElementById('googleBtn'); btn.disabled=true; btn.textContent='Connecting to Google…';
+ try { await ensureSupabase(); const sb=getSupabase(); if(!sb) throw new Error('Authentication service is unavailable.');
+ const result=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname.replace(/signup\.html$/,'')+'signin.html?oauth=google'+(new URLSearchParams(location.search).get('from')==='try'?'&from=try':'')}});
+ if(result.error) throw result.error;
+ } catch(e) { showToast(e.message||'Google sign-up failed','error'); btn.disabled=false; btn.textContent='Continue with Google'; }
+}
 async function doSignup(){
  const name=document.getElementById('name').value.trim(),email=document.getElementById('email').value.trim(),password=document.getElementById('password').value;
  if(!name||!email||!password){showToast('Please fill all fields','error');return}
@@ -46,11 +54,11 @@ async function doSignup(){
   saveCurrentUser({id:data.user.id,email:data.user.email||email,name,plan:'free',planVerified:false,paymentProvider:null,freePdfCredits:3,paidSingleCredits:0,singleCredits:3,unlockedInvoiceIds:[]});
   if(!data.session){
    showToast('Account created. Please sign in.','success',4000);
-   setTimeout(()=>location.href='signin.html',1200);
+   setTimeout(()=>location.href='signin.html'+(new URLSearchParams(location.search).get('from')==='try'?'?from=try':''),1200);
    return;
   }
   showToast('Account created! Your 3 free PDF / Print uses are ready.','success');
-  setTimeout(()=>location.href='dashboard.html',900);
+  setTimeout(()=>location.href=new URLSearchParams(location.search).get('from')==='try'?'app.html':'dashboard.html',900);
  }catch(e){showToast(e.message||'Unable to create account','error');btn.disabled=false;btn.textContent='Create Free Account →'}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter')doSignup()});
