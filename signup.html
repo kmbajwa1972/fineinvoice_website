@@ -54,11 +54,11 @@ async function doSignup(){
   saveCurrentUser({id:data.user.id,email:data.user.email||email,name,plan:'free',planVerified:false,paymentProvider:null,freePdfCredits:3,paidSingleCredits:0,singleCredits:3,unlockedInvoiceIds:[]});
   if(!data.session){
    showToast('Account created. Please sign in.','success',4000);
-   setTimeout(()=>location.href='signin.html',1200);
+   setTimeout(()=>location.href='signin.html'+(new URLSearchParams(location.search).get('from')==='try'?'?from=try':''),1200);
    return;
   }
   showToast('Account created! Your 3 free PDF / Print uses are ready.','success');
-  setTimeout(()=>location.href='dashboard.html',900);
+  setTimeout(()=>location.href=new URLSearchParams(location.search).get('from')==='try'?'app.html':'dashboard.html',900);
  }catch(e){showToast(e.message||'Unable to create account','error');btn.disabled=false;btn.textContent='Create Free Account →'}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter')doSignup()});
