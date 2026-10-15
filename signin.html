@@ -18,11 +18,23 @@ async function signInWithGoogle(){
 }
 async function doSignin(){const email=document.getElementById('email').value.trim(),password=document.getElementById('password').value,btn=document.getElementById('signinBtn'),n=document.getElementById('notice');n.className='notice';if(!email||!password){n.className='notice show error';n.textContent='Please enter your email and password.';return}btn.disabled=true;btn.textContent='Signing in…';try{await ensureSupabase(); const sb=getSupabase();if(!sb)throw new Error('Authentication service is unavailable. Please check your connection and try again.');let result=null;let lastError=null;for(let attempt=1;attempt<=3;attempt++){try{result=await sb.auth.signInWithPassword({email,password});lastError=result.error||null;if(!lastError)break;}catch(err){lastError=err;}if(attempt<3)await new Promise(resolve=>setTimeout(resolve,700*attempt));}const {data,error}=result||{};if(error)throw error;if(lastError)throw lastError;const m=data.user.user_metadata||{};const credits=Number(m.singleCredits);saveCurrentUser({id:data.user.id,email:data.user.email,name:m.name||email.split('@')[0],plan:m.plan||'free',planVerified:m.planVerified===true,paymentProvider:m.paymentProvider||null,singleCredits:Number.isFinite(credits)?credits:0,unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:[]});n.className='notice show success';n.textContent='Welcome back. Opening your workspace…';setTimeout(()=>location.href='dashboard.html',500)}catch(e){n.className='notice show error';n.textContent=e.message||'Unable to sign in. Please try again.';btn.disabled=false;btn.textContent='Sign In'}}
 (async function(){
- if(new URLSearchParams(location.search).get('oauth')!=='google') return;
- try { await ensureSupabase(); const sb=getSupabase(); if(!sb) return; const result=await sb.auth.getSession(); const session=result.data&&result.data.session; if(!session) return;
- const u=session.user,m=u.user_metadata||{};
- saveCurrentUser({id:u.id,email:u.email,name:m.name||m.full_name||(u.email||'User').split('@')[0],plan:'free',planVerified:false,paymentProvider:null,freePdfCredits:3,paidSingleCredits:0,singleCredits:3,unlockedInvoiceIds:[]});
- location.replace('dashboard.html');
- } catch(e) { console.error('Google sign-in callback failed',e); }
+ const params=new URLSearchParams(location.search);
+ if(params.get('oauth')!=='google') return;
+ try {
+  await ensureSupabase(); const sb=getSupabase(); if(!sb) throw new Error('Authentication service is unavailable.');
+  const result=await sb.auth.getSession(); const session=result.data&&result.data.session;
+  if(result.error) throw result.error;
+  if(!session) throw new Error('Google sign-in did not return a session. Please try again.');
+  const u=session.user,m=u.user_metadata||{},previous=getCurrentUser()||{};
+  const freePdfCredits=Number.isFinite(Number(m.freePdfCredits))?Math.max(0,Number(m.freePdfCredits)):Math.max(0,Number(previous.freePdfCredits??3));
+  const paidSingleCredits=Number.isFinite(Number(m.paidSingleCredits))?Math.max(0,Number(m.paidSingleCredits)):Math.max(0,Number(previous.paidSingleCredits||0));
+  const user={...previous,id:u.id,email:u.email||previous.email||'',name:m.name||m.full_name||previous.name||(u.email||'User').split('@')[0],plan:m.plan||previous.plan||'free',planVerified:m.planVerified===true||previous.planVerified===true,paymentProvider:m.paymentProvider||previous.paymentProvider||null,freePdfCredits,paidSingleCredits,singleCredits:freePdfCredits+paidSingleCredits,unlockedInvoiceIds:Array.isArray(m.unlockedInvoiceIds)?m.unlockedInvoiceIds:(previous.unlockedInvoiceIds||[])};
+  saveCurrentUser(user);
+  const from=params.get('from');
+  location.replace(from==='try'?'app.html':'dashboard.html');
+ } catch(e) {
+  console.error('Google sign-in callback failed',e);
+  const n=document.getElementById('notice');if(n){n.className='notice show error';n.textContent=e.message||'Google sign-in failed. Please try again.';}
+ }
 })();
 </script></body></html>
