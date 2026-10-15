@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Online Invoice Maker, Try It Without Signing Up | FineInvoice</title>
+<meta name="description" content="Build an invoice online and see it update live. No account needed to try it. Supports PKR, USD, EUR, AED and GBP. Create a free account to download the PDF.">
+<link rel="canonical" href="https://fineinvoice.com/try.html">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#7c3aed">
+<meta property="og:title" content="Free Online Invoice Maker | FineInvoice">
+<meta property="og:description" content="Build an invoice and watch it update live. No signup to try.">
+<meta property="og:url" content="https://fineinvoice.com/try.html">
+<meta property="og:image" content="https://fineinvoice.com/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f0d1a; --panel:#171428; --panel-2:#1e1a33; --line:#2c2748;
+  --text:#ece9f7; --muted:#9d97bd; --accent:#7c3aed; --accent-hover:#6d28d9;
+  --danger:#f87171;
+  --paper:#ffffff; --ink:#1b1830; --ink-muted:#6b6785; --paper-line:#e6e3f0;
+  --inv:#7c3aed;
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid #b69cff;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+/* top bar */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;font-size:18px}
+.brand img{width:30px;height:30px;border-radius:8px;object-fit:cover}
+.bar nav{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--panel-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+
+.intro{max-width:1240px;margin:0 auto;padding:22px 20px 6px}
+.intro h1{margin:0 0 4px;font-size:clamp(1.5rem,3vw,2.1rem);line-height:1.15;letter-spacing:-.02em}
+.intro p{margin:0;color:var(--muted);max-width:62ch}
+
+/* mobile tabs */
+.tabs{display:none;max-width:1240px;margin:12px auto 0;padding:0 20px;gap:8px}
+.tabs button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:inherit;font-weight:600;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* layout */
+.work{max-width:1240px;margin:0 auto;padding:16px 20px 40px;display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:24px;align-items:start}
+.form{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+.form h2{font-size:15px;margin:0 0 12px;color:var(--text)}
+.form section+section{margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+.row{display:grid;gap:12px}
+.row.two{grid-template-columns:1fr 1fr}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+input,textarea,select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font:inherit;font-size:15px}
+input:hover,textarea:hover,select:hover{border-color:#40395f}
+textarea{resize:vertical;min-height:70px}
+input[type=number]{font-variant-numeric:tabular-nums}
+
+.items{display:grid;gap:10px}
+.item{display:grid;grid-template-columns:1fr 64px 92px 34px;gap:8px;align-items:end}
+.item .x{height:40px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;font-size:18px;line-height:1}
+.item .x:hover{color:var(--danger);border-color:var(--danger)}
+.add{margin-top:10px;width:100%;border-style:dashed}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swatches button{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+.swatches button[aria-pressed="true"]{border-color:#fff;box-shadow:0 0 0 2px var(--bg) inset}
+
+/* preview */
+.preview{position:sticky;top:16px}
+.paper{background:var(--paper);color:var(--ink);border-radius:6px;padding:clamp(22px,4vw,44px);box-shadow:0 18px 50px rgba(0,0,0,.45);min-height:560px;position:relative;overflow:hidden}
+.paper::before{content:"";position:absolute;left:0;top:0;right:0;height:8px;background:var(--inv)}
+.p-head{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:6px}
+.p-title{font-size:30px;font-weight:700;letter-spacing:-.02em;color:var(--inv);margin:0}
+.p-meta{font-size:14px;color:var(--ink-muted);text-align:right}
+.p-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+.p-parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:28px 0}
+.p-parties h3{font-size:13px;font-weight:600;color:var(--ink-muted);margin:0 0 4px}
+.p-parties p{margin:0;white-space:pre-line;word-break:break-word;font-size:15px}
+.p-parties .name{font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th{text-align:left;font-weight:600;color:var(--ink-muted);font-size:13px;padding:8px 0;border-bottom:2px solid var(--inv)}
+td{padding:10px 0;border-bottom:1px solid var(--paper-line);vertical-align:top;word-break:break-word}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:12px}
+.p-totals{margin:18px 0 0 auto;width:min(100%,270px);font-size:14.5px}
+.p-totals div{display:flex;justify-content:space-between;padding:5px 0;font-variant-numeric:tabular-nums}
+.p-totals .due{margin-top:8px;padding:12px 14px;background:var(--inv);color:#fff;border-radius:8px;font-size:17px;font-weight:700}
+.p-notes{margin-top:30px;font-size:14px;color:var(--ink-muted);white-space:pre-line;word-break:break-word}
+.p-notes b{display:block;color:var(--ink);margin-bottom:2px;font-weight:600}
+.empty{color:#b3afc8}
+
+.dl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.dl .btn{padding:12px 22px;font-size:16px}
+.dl small{color:var(--muted)}
+
+/* dialog */
+dialog{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:16px;padding:26px;max-width:430px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(8,6,16,.7)}
+dialog h2{margin:0 0 8px;font-size:21px;letter-spacing:-.01em}
+dialog p{margin:0 0 18px;color:var(--muted)}
+dialog .actions{display:flex;gap:10px;flex-wrap:wrap}
+dialog .actions .btn{flex:1}
+
+/* faq */
+.faq{max-width:760px;margin:0 auto;padding:10px 20px 60px}
+.faq h2{font-size:22px;margin:0 0 14px}
+.faq details{border-top:1px solid var(--line);padding:14px 0}
+.faq details:last-child{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;font-weight:600}
+.faq p{margin:8px 0 0;color:var(--muted)}
+footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;color:var(--muted);font-size:14px}
+footer a{margin:0 8px;text-decoration:none}
+footer a:hover{text-decoration:underline}
+
+@media (max-width:900px){
+  .work{grid-template-columns:1fr}
+  .preview{position:static}
+  .tabs{display:flex}
+  .work[data-view="edit"] .preview{display:none}
+  .work[data-view="preview"] .form{display:none}
+}
+@media (max-width:480px){
+  .item{grid-template-columns:1fr 56px 80px 34px}
+  .p-parties{grid-template-columns:1fr}
+  .p-meta{text-align:left}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/"><img src="logo.jpg" alt="" width="30" height="30">FineInvoice</a>
+  <nav aria-label="Account">
+    <a class="btn" href="signin.html">Sign in</a>
+    <a class="btn primary" href="signup.html?from=try">Get 3 free PDFs</a>
+  </nav>
+</header>
+
+<div class="intro">
+  <h1>Build an invoice. No account needed to try it.</h1>
+  <p>Fill in the details on the left and your invoice updates on the right. When it looks right, create a free account and download the PDF.</p>
+</div>
+
+<div class="tabs" role="tablist" aria-label="View">
+  <button role="tab" id="tab-edit" aria-selected="true" data-go="edit">Edit</button>
+  <button role="tab" id="tab-preview" aria-selected="false" data-go="preview">Preview</button>
+</div>
+
+<main class="work" id="work" data-view="edit">
+  <!-- FORM -->
+  <div class="form">
+    <section>
+      <h2>Your business</h2>
+      <div class="row">
+        <div><label for="biz">Business or your name</label><input id="biz" data-bind="biz" autocomplete="organization" placeholder="Khan Design Studio"></div>
+        <div><label for="bizc">Address, email or phone</label><textarea id="bizc" data-bind="bizContact" placeholder="hello@khandesign.com&#10;Lahore, Pakistan"></textarea></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Bill to</h2>
+      <div class="row">
+        <div><label for="client">Client name</label><input id="client" data-bind="client" placeholder="Acme Ltd"></div>
+        <div><label for="clientc">Client address or email</label><textarea id="clientc" data-bind="clientContact" placeholder="accounts@acme.com&#10;Dubai, UAE"></textarea></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Invoice details</h2>
+      <div class="row two">
+        <div><label for="num">Invoice number</label><input id="num" data-bind="num"></div>
+        <div><label for="cur">Currency</label>
+          <select id="cur" data-bind="cur">
+            <option value="PKR">PKR, Pakistani rupee</option>
+            <option value="USD" selected>USD, US dollar</option>
+            <option value="EUR">EUR, euro</option>
+            <option value="AED">AED, UAE dirham</option>
+            <option value="GBP">GBP, pound sterling</option>
+          </select>
+        </div>
+        <div><label for="date">Invoice date</label><input id="date" type="date" data-bind="date"></div>
+        <div><label for="due">Due date</label><input id="due" type="date" data-bind="due"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Items</h2>
+      <div class="items" id="items"></div>
+      <button type="button" class="btn add" id="addItem">Add another item</button>
+      <div class="row two" style="margin-top:14px">
+        <div><label for="tax">Tax (%)</label><input id="tax" type="number" min="0" max="100" step="0.01" inputmode="decimal" data-bind="tax"></div>
+        <div><label for="disc">Discount (%)</label><input id="disc" type="number" min="0" max="100" step="0.01" inputmode="decimal" data-bind="disc"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Payment details and notes</h2>
+      <label for="notes">Shown at the bottom of the invoice</label>
+      <textarea id="notes" data-bind="notes" placeholder="Bank: HBL, Account title: Khan Design Studio&#10;IBAN: PK00 0000 0000 0000&#10;Payment due within 14 days."></textarea>
+    </section>
+
+    <section>
+      <h2>Colour</h2>
+      <div class="swatches" id="swatches" role="group" aria-label="Invoice colour"></div>
+    </section>
+  </div>
+
+  <!-- PREVIEW -->
+  <div class="preview">
+    <article class="paper" id="paper" aria-label="Invoice preview">
+      <div class="p-head">
+        <h2 class="p-title">Invoice</h2>
+        <div class="p-meta">
+          <div>Number <strong id="v-num"></strong></div>
+          <div>Issued <strong id="v-date"></strong></div>
+          <div>Due <strong id="v-due"></strong></div>
+        </div>
+      </div>
+      <div class="p-parties">
+        <div><h3>From</h3><p class="name" id="v-biz"></p><p id="v-bizc"></p></div>
+        <div><h3>Bill to</h3><p class="name" id="v-client"></p><p id="v-clientc"></p></div>
+      </div>
+      <table>
+        <thead><tr><th>Description</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead>
+        <tbody id="v-items"></tbody>
+      </table>
+      <div class="p-totals">
+        <div><span>Subtotal</span><span id="v-sub"></span></div>
+        <div id="v-discRow"><span id="v-discLabel">Discount</span><span id="v-disc"></span></div>
+        <div id="v-taxRow"><span id="v-taxLabel">Tax</span><span id="v-tax"></span></div>
+        <div class="due"><span>Total due</span><span id="v-total"></span></div>
+      </div>
+      <div class="p-notes" id="v-notesWrap"><b>Payment details and notes</b><span id="v-notes"></span></div>
+    </article>
+
+    <div class="dl">
+      <button type="button" class="btn primary" id="download">Download PDF</button>
+      <small>Free account includes 3 PDF downloads.</small>
+    </div>
+  </div>
+</main>
+
+<section class="faq" aria-labelledby="faq-h">
+  <h2 id="faq-h">Questions</h2>
+  <details><summary>Do I need an account to build an invoice?</summary><p>No. You can fill in and preview an invoice here without signing up. An account is needed to download the PDF.</p></details>
+  <details><summary>What happens to the invoice I just made?</summary><p>It is saved in this browser. After you create an account, you can open the invoice builder and carry on from where you stopped.</p></details>
+  <details><summary>Which currencies can I use?</summary><p>PKR, USD, EUR, AED and GBP, so you can bill clients in Pakistan and abroad.</p></details>
+  <details><summary>What does it cost?</summary><p>New accounts get 3 free PDF downloads. After that you can pay $2 for a single PDF or $25 once for lifetime access, which also includes the offline desktop app.</p></details>
+</section>
+
+<footer>
+  <a href="about.html">About</a><a href="faq.html">FAQ</a><a href="contact.html">Contact</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a>
+  <div style="margin-top:8px">&copy; 2026 FineInvoice</div>
+</footer>
+
+<dialog id="gate" aria-labelledby="gate-h">
+  <h2 id="gate-h">Your invoice is ready to download</h2>
+  <p>Create a free account to get the PDF. You get 3 free downloads, and the invoice you just built is kept for you.</p>
+  <div class="actions">
+    <a class="btn primary" href="signup.html?from=try">Create free account</a>
+    <a class="btn" href="signin.html?from=try">I have an account</a>
+  </div>
+  <div style="margin-top:12px"><button type="button" class="btn" id="gateClose" style="width:100%">Keep editing</button></div>
+</dialog>
+
+<script>
+(function(){
+  var KEY = 'fineinvoice_trial_draft';
+  var COLORS = ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ef4444'];
+  var COLOR_NAMES = ['Purple','Blue','Green','Amber','Red'];
+
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var today = new Date(), due = new Date(); due.setDate(due.getDate()+14);
+
+  var state = {
+    biz:'', bizContact:'', client:'', clientContact:'',
+    num:'INV-0001', date:iso(today), due:iso(due), cur:'USD',
+    tax:0, disc:0, notes:'', theme:COLORS[0],
+    items:[{d:'Website design',q:1,r:500},{d:'',q:1,r:0}]
+  };
+
+  // restore draft
+  try {
+    var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+      for (var k in state) if (saved[k] !== undefined) state[k] = saved[k];
+      if (!Array.isArray(state.items) || !state.items.length) state.items = [{d:'',q:1,r:0}];
+    }
+  } catch(e) {}
+
+  var $ = function(id){ return document.getElementById(id); };
+  var saveTimer;
+  function save(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {}
+    }, 250);
+  }
+
+  function num(v){ var n = parseFloat(v); return isFinite(n) && n >= 0 ? n : 0; }
+  function money(v){
+    try { return new Intl.NumberFormat('en-US',{style:'currency',currency:state.cur}).format(v); }
+    catch(e){ return state.cur + ' ' + v.toFixed(2); }
+  }
+  function fmtDate(s){
+    if(!s) return '';
+    var d = new Date(s + 'T00:00:00');
+    return isNaN(d) ? '' : d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  }
+  function setText(id, val, placeholder){
+    var el = $(id);
+    if (val && String(val).trim()) { el.textContent = val; el.classList.remove('empty'); }
+    else { el.textContent = placeholder || ''; el.classList.add('empty'); }
+  }
+
+  function render(){
+    document.getElementById('paper').style.setProperty('--inv', state.theme);
+    setText('v-num', state.num, '-');
+    setText('v-date', fmtDate(state.date), '-');
+    setText('v-due', fmtDate(state.due), '-');
+    setText('v-biz', state.biz, 'Your business name');
+    setText('v-bizc', state.bizContact, 'Your address or contact');
+    setText('v-client', state.client, 'Client name');
+    setText('v-clientc', state.clientContact, 'Client address or email');
+
+    var tb = $('v-items'); tb.textContent = '';
+    var sub = 0;
+    state.items.forEach(function(it){
+      var q = num(it.q), r = num(it.r), amt = q * r;
+      sub += amt;
+      var tr = document.createElement('tr');
+      var td1 = document.createElement('td');
+      td1.textContent = it.d || 'Item description';
+      if (!it.d) td1.className = 'empty';
+      tr.appendChild(td1);
+      [String(q), money(r), money(amt)].forEach(function(t){
+        var td = document.createElement('td'); td.className = 'n'; td.textContent = t; tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+
+    var discPct = Math.min(num(state.disc), 100), taxPct = Math.min(num(state.tax), 100);
+    var discAmt = sub * discPct / 100;
+    var taxable = sub - discAmt;
+    var taxAmt = taxable * taxPct / 100;
+    var total = taxable + taxAmt;
+
+    $('v-sub').textContent = money(sub);
+    $('v-discRow').style.display = discPct > 0 ? '' : 'none';
+    $('v-discLabel').textContent = 'Discount (' + discPct + '%)';
+    $('v-disc').textContent = '-' + money(discAmt);
+    $('v-taxRow').style.display = taxPct > 0 ? '' : 'none';
+    $('v-taxLabel').textContent = 'Tax (' + taxPct + '%)';
+    $('v-tax').textContent = money(taxAmt);
+    $('v-total').textContent = money(total);
+
+    var hasNotes = state.notes && state.notes.trim();
+    $('v-notesWrap').style.display = hasNotes ? '' : 'none';
+    $('v-notes').textContent = hasNotes ? state.notes : '';
+  }
+
+  // bind simple fields
+  document.querySelectorAll('[data-bind]').forEach(function(el){
+    var key = el.getAttribute('data-bind');
+    el.value = state[key];
+    el.addEventListener('input', function(){ state[key] = el.value; render(); save(); });
+    el.addEventListener('change', function(){ state[key] = el.value; render(); save(); });
+  });
+
+  // line items
+  function buildItems(){
+    var box = $('items'); box.textContent = '';
+    state.items.forEach(function(it, i){
+      var row = document.createElement('div'); row.className = 'item';
+      function field(label, type, val, attrs, onInput){
+        var w = document.createElement('div');
+        var l = document.createElement('label'); l.textContent = label; l.htmlFor = 'it' + i + label;
+        var inp = document.createElement('input'); inp.id = l.htmlFor; inp.type = type; inp.value = val;
+        for (var a in attrs) inp.setAttribute(a, attrs[a]);
+        inp.addEventListener('input', function(){ onInput(inp.value); render(); save(); });
+        w.appendChild(l); w.appendChild(inp); return w;
+      }
+      row.appendChild(field('Description','text', it.d, {placeholder:'What you did'}, function(v){ it.d = v; }));
+      row.appendChild(field('Qty','number', it.q, {min:'0', step:'any', inputmode:'decimal'}, function(v){ it.q = v; }));
+      row.appendChild(field('Rate','number', it.r, {min:'0', step:'any', inputmode:'decimal'}, function(v){ it.r = v; }));
+      var x = document.createElement('button'); x.type = 'button'; x.className = 'x';
+      x.setAttribute('aria-label', 'Remove item ' + (i+1)); x.textContent = '\u00d7';
+      x.addEventListener('click', function(){
+        if (state.items.length > 1) state.items.splice(i,1); else state.items[0] = {d:'',q:1,r:0};
+        buildItems(); render(); save();
+      });
+      row.appendChild(x);
+      box.appendChild(row);
+    });
+  }
+  $('addItem').addEventListener('click', function(){
+    state.items.push({d:'',q:1,r:0}); buildItems(); render(); save();
+    var inputs = $('items').querySelectorAll('input[type=text]');
+    if (inputs.length) inputs[inputs.length-1].focus();
+  });
+
+  // colour swatches
+  function buildSwatches(){
+    var box = $('swatches'); box.textContent = '';
+    COLORS.forEach(function(c, i){
+      var b = document.createElement('button'); b.type = 'button';
+      b.style.background = c; b.setAttribute('aria-label', COLOR_NAMES[i]);
+      b.setAttribute('aria-pressed', String(state.theme === c));
+      b.addEventListener('click', function(){ state.theme = c; buildSwatches(); render(); save(); });
+      box.appendChild(b);
+    });
+  }
+
+  // mobile tabs
+  document.querySelectorAll('[data-go]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var v = btn.getAttribute('data-go');
+      $('work').setAttribute('data-view', v);
+      $('tab-edit').setAttribute('aria-selected', String(v === 'edit'));
+      $('tab-preview').setAttribute('aria-selected', String(v === 'preview'));
+      window.scrollTo({top:0});
+    });
+  });
+
+  // download gate
+  var gate = $('gate');
+  $('download').addEventListener('click', function(){
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {}
+    if (gate.showModal) gate.showModal(); else window.location.href = 'signup.html?from=try';
+  });
+  $('gateClose').addEventListener('click', function(){ gate.close(); });
+  gate.addEventListener('click', function(e){ if (e.target === gate) gate.close(); });
+
+  buildItems(); buildSwatches(); render();
+})();
+</script>
+</body>
+</html>
