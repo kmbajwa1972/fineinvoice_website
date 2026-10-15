@@ -62,13 +62,21 @@
       width:100%;
     }
     .footer-links a {
-      color:#0F1F3D;
+      color:#D5DDF2;
       text-decoration:none;
       font-size:.9rem;
       font-weight:500;
     }
-    .footer-links a:hover {
-      color:#4F6EF7;
+    .footer-links a:hover,
+    .footer-links a:focus-visible {
+      color:#8EA2FF;
+      text-decoration:underline;
+      text-underline-offset:3px;
+    }
+    .footer-links a:focus-visible,
+    .glimerz-btn:focus-visible {
+      outline:2px solid #ffffff;
+      outline-offset:4px;
     }
     .footer-bottom {
       width:100%;
@@ -82,7 +90,7 @@
     }
     .footer-bottom p {
       margin:0;
-      color:rgba(255,255,255,.4);
+      color:rgba(255,255,255,.75);
       font-size:.85rem;
     }
     .glimerz-btn {
