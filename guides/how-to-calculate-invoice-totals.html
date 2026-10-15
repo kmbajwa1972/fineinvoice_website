@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to Calculate Invoice Totals Correctly | FineInvoice</title>
+  <meta name="description" content="Learn how to calculate invoice line totals, subtotals, discounts, taxes, deposits, and balances with clear worked examples and a practical accuracy checklist.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://fineinvoice.com/guides/how-to-calculate-invoice-totals.html">
+  <link rel="icon" href="/logo.jpg">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9496940667324349" crossorigin="anonymous"></script>
+  <style>
+    body{margin:0;background:#f7f9fc;color:#111827;font-family:Inter,Arial,sans-serif;line-height:1.75}
+    .wrap{max-width:900px;margin:auto;padding:30px 20px 70px}
+    .article{background:#fff;border:1px solid #e4e9f2;border-radius:20px;padding:42px;box-shadow:0 8px 30px #0f1f3d0d}
+    h1,h2,h3{color:#0f1f3d}h1{line-height:1.2}h2{margin-top:34px;line-height:1.35}h3{margin-top:24px}
+    p,li{font-size:1rem;color:#374151}
+    .back{display:inline-block;margin-bottom:22px;color:#4f6ef7;text-decoration:none;font-weight:700}
+    .example{margin:22px 0;padding:20px;background:#f8faff;border:1px solid #dfe7f5;border-radius:12px;overflow-wrap:anywhere}
+    .example table{width:100%;border-collapse:collapse;margin:12px 0}
+    .example th,.example td{padding:9px 8px;border-bottom:1px solid #dfe7f5;text-align:left;color:#374151}
+    .example th:last-child,.example td:last-child{text-align:right}
+    .callout{border-left:4px solid #4f6ef7;padding:12px 16px;background:#f8faff;margin:20px 0}
+    @media(max-width:650px){.article{padding:25px}.example{padding:14px}.example th,.example td{padding:7px 4px;font-size:.9rem}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/guides.html">← All Invoice Guides</a>
+    <article class="article">
+      <h1>How to Calculate Invoice Totals Correctly</h1>
+      <p>An invoice total should be easy for a customer to understand and easy for you to verify. The amount usually starts with the individual items or services, then accounts for any agreed discount, applicable tax, previous payments, or deposit. A small arithmetic error can delay payment or create an awkward correction, so it helps to use the same calculation process every time.</p>
+      <p>This guide explains the steps with worked examples, including hourly work, percentage discounts, tax, and a partly paid invoice. The numbers are examples for learning, not tax advice. Tax rules, rounding requirements, and the order in which adjustments are applied can vary by location and transaction type.</p>
+
+      <h2>1. Calculate each line item first</h2>
+      <p>For each item, multiply the quantity by the agreed unit price or rate. For hourly services, quantity is usually the number of billable hours; for products, it may be the number of units. Check that the quantity and rate match the quote, purchase order, or agreement before adding the line to the invoice.</p>
+      <div class="example">
+        <strong>Example: three different services</strong>
+        <table>
+          <thead><tr><th>Service</th><th>Calculation</th><th>Line total</th></tr></thead>
+          <tbody>
+            <tr><td>Design work</td><td>4 hours × $30</td><td>$120.00</td></tr>
+            <tr><td>Copy editing</td><td>2 hours × $25</td><td>$50.00</td></tr>
+            <tr><td>Stock images</td><td>3 items × $8</td><td>$24.00</td></tr>
+            <tr><td><strong>Subtotal before adjustments</strong></td><td></td><td><strong>$194.00</strong></td></tr>
+          </tbody>
+        </table>
+        <p>The subtotal is $120 + $50 + $24 = $194. Keep enough detail on the invoice for the customer to see how each line was calculated.</p>
+      </div>
+      <p>If your invoicing tool supports quantities and unit rates, enter those values rather than typing a guessed line total. Review any rounding that occurs when a unit price has more decimal places than the currency normally displays.</p>
+
+      <h2>2. Apply agreed discounts consistently</h2>
+      <p>A discount may apply to one item or to the whole eligible subtotal. State which items qualify and calculate the discount from the correct base. Do not discount tax or exclude fees automatically unless that treatment matches your agreement and the rules that apply to the transaction.</p>
+      <div class="example">
+        <strong>Example: a 10% discount on eligible work</strong>
+        <ul>
+          <li>Eligible subtotal: $194.00</li>
+          <li>Discount: $194.00 × 10% = $19.40</li>
+          <li>Subtotal after discount: $194.00 − $19.40 = $174.60</li>
+        </ul>
+      </div>
+      <p>If the discount applies only to design work, calculate 10% of $120 instead: the discount would be $12.00, not $19.40. Label the discount clearly so the customer can see what it covers.</p>
+
+      <h2>3. Add tax only when it applies</h2>
+      <p>Whether you need to charge sales tax, VAT, GST, or another tax depends on your location, registration status, the customer, and the type of goods or services. Confirm the applicable rate and tax base before issuing the invoice. Do not add a tax rate simply because the invoice template offers a tax field.</p>
+      <p>For a simplified example, suppose a 5% tax applies to the discounted $174.60 subtotal. The tax would be $174.60 × 0.05 = $8.73, making the total $183.33. This is an arithmetic example only; it does not imply that 5% is the correct rate for your business.</p>
+      <div class="example">
+        <strong>Example: subtotal, discount, and tax</strong>
+        <table>
+          <tbody>
+            <tr><td>Original subtotal</td><td>$194.00</td></tr>
+            <tr><td>Discount (10% of eligible subtotal)</td><td>−$19.40</td></tr>
+            <tr><td>Subtotal after discount</td><td>$174.60</td></tr>
+            <tr><td>Illustrative tax (5%)</td><td>+$8.73</td></tr>
+            <tr><td><strong>Total invoice amount</strong></td><td><strong>$183.33</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Some transactions require tax to be calculated per line, and some jurisdictions prescribe particular rounding rules or a different treatment for discounts. Follow the official rules that apply to your invoice and keep your calculations consistent.</p>
+
+      <h2>4. Distinguish the invoice total from the balance due</h2>
+      <p>The invoice total is the amount charged for the goods or services after applicable adjustments. The balance due is what remains after deposits, credits, or payments already received are applied. Showing these separately helps customers understand both the original charge and the amount they still need to pay.</p>
+      <div class="example">
+        <strong>Example: a customer has already paid a deposit</strong>
+        <ul>
+          <li>Total invoice amount: $183.33</li>
+          <li>Deposit previously received: $50.00</li>
+          <li>Remaining balance due: $183.33 − $50.00 = $133.33</li>
+        </ul>
+      </div>
+      <p>Make sure the deposit or prior payment is recorded accurately and is not accidentally subtracted twice. If you issue a separate invoice for a milestone or advance, follow the agreed billing arrangement and the documentation rules that apply to you.</p>
+
+      <h2>5. Handle currency and rounding carefully</h2>
+      <p>Use the currency agreed with the customer and show it clearly. Do not add figures in different currencies as if they were the same amount. If you convert a price, document the exchange rate and conversion date when relevant, and agree who is responsible for conversion or bank fees.</p>
+      <p>For currencies normally displayed to two decimal places, invoice totals are commonly shown to two decimal places, but the calculation rules can differ. Avoid rounding every intermediate number unless the applicable rules or your system require it. A reliable process is to keep adequate precision during calculation and apply the correct rounding rule at the required stage.</p>
+      <div class="callout"><strong>Quick check:</strong> if the displayed line totals add up to a different number from the displayed subtotal, inspect the underlying quantities, rates, discounts, and rounding settings before sending the invoice.</div>
+
+      <h2>6. Common mistakes that change the total</h2>
+      <ul>
+        <li><strong>Wrong quantity:</strong> entering 12 hours instead of 2 hours multiplies the charge incorrectly.</li>
+        <li><strong>Rate mismatch:</strong> using an old rate rather than the price agreed for this job.</li>
+        <li><strong>Discount applied to the wrong items:</strong> discounting non-eligible items or applying the discount twice.</li>
+        <li><strong>Tax entered without checking:</strong> using an incorrect rate or adding tax when it does not apply.</li>
+        <li><strong>Payment subtracted twice:</strong> deducting a deposit in the line items and again from the final balance.</li>
+        <li><strong>Currency inconsistency:</strong> combining amounts that use different currencies without a documented conversion.</li>
+        <li><strong>Rounding mismatch:</strong> manually changing a total to make it look right instead of finding the calculation that caused the difference.</li>
+      </ul>
+
+      <h2>7. A simple review checklist before sending</h2>
+      <p>Take a moment to verify the arithmetic and the agreement together. A mathematically correct invoice can still be wrong if it uses the wrong rate, includes unapproved work, or applies an incorrect tax treatment.</p>
+      <ul>
+        <li>Does each quantity and unit price match the agreed work?</li>
+        <li>Do the line totals add up to the subtotal?</li>
+        <li>Is every discount clearly explained and applied to eligible items only?</li>
+        <li>Have you confirmed whether tax applies, the rate, and the correct calculation base?</li>
+        <li>Is the currency consistent throughout the document?</li>
+        <li>Are deposits, credits, and previous payments reflected exactly once?</li>
+        <li>Does the displayed total match the arithmetic, and is the balance due clear?</li>
+        <li>Does the final PDF show all amounts legibly without clipped rows or digits?</li>
+      </ul>
+
+      <h2>Use an invoice tool, then verify the result</h2>
+      <p>FineInvoice helps you prepare an invoice with line items and review the document before downloading a PDF. Enter the agreed quantities, rates, discounts, and any applicable tax, then check the generated totals against your own agreement and the rules that apply to your business. Software can reduce manual arithmetic, but it cannot determine your tax obligations for you.</p>
+      <p>For related steps, read <a href="/guides/how-to-create-an-invoice.html">How to Create an Invoice</a>, <a href="/guides/what-to-include-on-an-invoice.html">What to Include on an Invoice</a>, and <a href="/guides/how-to-write-a-freelance-invoice.html">How to Write an Invoice for Freelance Work</a>. If you are unsure about tax treatment or required records, consult an appropriately qualified professional in your jurisdiction.</p>
+      <p><a href="/try.html">Try FineInvoice</a> to prepare an invoice and review its PDF before sending it to your customer.</p>
+    </article>
+  </div>
+  <div id="site-footer"></div>
+  <script src="/js/footer-loader.js"></script>
+</body>
+</html>
