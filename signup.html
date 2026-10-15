@@ -36,7 +36,7 @@ window.ensureSupabase=window.ensureSupabase||function(timeoutMs=8000){
 async function signInWithGoogle(){
  const btn=document.getElementById('googleBtn'); btn.disabled=true; btn.textContent='Connecting to Google…';
  try { await ensureSupabase(); const sb=getSupabase(); if(!sb) throw new Error('Authentication service is unavailable.');
- const result=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname.replace(/signup\.html$/,'')+'signin.html?oauth=google'}});
+ const result=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname.replace(/signup\.html$/,'')+'signin.html?oauth=google'+(new URLSearchParams(location.search).get('from')==='try'?'&from=try':'')}});
  if(result.error) throw result.error;
  } catch(e) { showToast(e.message||'Google sign-up failed','error'); btn.disabled=false; btn.textContent='Continue with Google'; }
 }
