@@ -132,7 +132,14 @@
   /* FLOATING ACTION BUTTONS */
   .fab { position:fixed; bottom:24px; z-index:200; display:flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:50%; box-shadow:0 8px 24px rgba(0,0,0,.25); text-decoration:none; font-size:1.3rem; transition:transform .15s; }
   .fab:hover { transform:translateY(-3px) scale(1.05); }
-  .fab-admin { left:24px; background:var(--navy); color:white; }
+  .fab-admin {
+    left:8px; bottom:8px; width:18px; height:18px; font-size:9px;
+    background:transparent; color:var(--navy); box-shadow:none; opacity:.12;
+  }
+  .fab-admin:hover, .fab-admin:focus-visible {
+    opacity:.95; background:var(--navy); color:white;
+    box-shadow:0 3px 10px rgba(0,0,0,.2);
+  }
   .fab-desktop { right:24px; bottom:96px; background:var(--indigo); color:white; }
 
   /* LIFETIME-REQUIRED MODAL */
@@ -557,7 +564,7 @@
   </div>
 </footer>
 
-<a href="admin.html" class="fab fab-admin" title="Admin">🔒</a>
+<a href="admin.html" class="fab fab-admin" title="Admin" aria-label="Admin access">🔒</a>
 <a href="#" class="fab fab-desktop" title="Download Desktop Version" onclick="handleDesktopDownload();return false;">🖥️</a>
 
 <!-- Lifetime-required popup -->
