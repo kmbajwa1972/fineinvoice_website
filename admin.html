@@ -268,7 +268,14 @@ async function issueCode(id){
 
 function clearAllData(){
   if(!confirm('⚠️ This will delete ALL users, invoices, customers and licenses. This cannot be undone.\n\nAre you sure?')) return;
+  // Clear both legacy shared records and account-scoped invoice/customer caches.
   ['fi_users','fi_customers','fi_invoices','fi_license','fi_current_user','fi_payment_submission','fi_downloads'].forEach(k => localStorage.removeItem(k));
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key && (/^fi_invoices_[a-z0-9_-]+$/i.test(key) || /^fi_customers_[a-z0-9_-]+$/i.test(key))) {
+      localStorage.removeItem(key);
+    }
+  }
   showToast('All data cleared', 'info');
   loadAdminData();
 }
