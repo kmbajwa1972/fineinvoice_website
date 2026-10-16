@@ -131,14 +131,24 @@
     if (!window.jspdf?.jsPDF || typeof html2canvas !== 'function') throw Error('PDF engine unavailable');
     const paper = document.querySelector('#invoiceDoc .invoice-paper');
     if (!paper) throw Error('Invoice is empty');
-    const el = document.getElementById('invoiceDoc');
     const canvas = await html2canvas(paper, { scale: 3, useCORS: true, backgroundColor: '#fff', scrollX: 0, scrollY: 0, logging: false });
     const { jsPDF } = window.jspdf;
     const W = 210, M = 6, CW = W - M * 2, CH = 297 - M * 2;
     const mm = CW / canvas.width;
-    const pagePx = Math.ceil(CH / mm);
-    const pages = Math.max(1, Math.ceil(canvas.height / pagePx));
+    const totalH = canvas.height * mm;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    // Normal invoices: fit on ONE page (the on-screen layout is slightly taller than the print layout,
+    // which used to push a thin strip onto a blank 2nd page).
+    if (totalH <= CH * 1.25) {
+      let w = CW, h = totalH;
+      if (h > CH) { const k = CH / h; w *= k; h *= k; }
+      doc.addImage(canvas.toDataURL('image/jpeg', .96), 'JPEG', M + (CW - w) / 2, M, w, h);
+      return doc;
+    }
+    // Long invoices: paginate, but never emit a near-empty last page.
+    const pagePx = Math.ceil(CH / mm);
+    let pages = Math.max(1, Math.ceil(canvas.height / pagePx));
+    if (pages > 1 && canvas.height - (pages - 1) * pagePx < pagePx * 0.04) pages--;
     for (let p = 0; p < pages; p++) {
       if (p) doc.addPage('a4', 'portrait');
       const sy = p * pagePx;
