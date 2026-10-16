@@ -303,6 +303,11 @@ footer a:hover{text-decoration:underline}
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {}
     }, 250);
   }
+  // write the draft immediately (used before navigating away)
+  function flush(){
+    clearTimeout(saveTimer);
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {}
+  }
 
   function num(v){ var n = parseFloat(v); return isFinite(n) && n >= 0 ? n : 0; }
   function money(v){
@@ -432,11 +437,16 @@ footer a:hover{text-decoration:underline}
   // download gate
   var gate = $('gate');
   $('download').addEventListener('click', function(){
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {}
+    flush();
     if (gate.showModal) gate.showModal(); else window.location.href = 'signup.html?from=try';
   });
   $('gateClose').addEventListener('click', function(){ gate.close(); });
   gate.addEventListener('click', function(e){ if (e.target === gate) gate.close(); });
+
+  // Flush before any link navigation or when the page is being hidden.
+  document.addEventListener('click', function(e){ var a = e.target.closest && e.target.closest('a[href]'); if (a) flush(); }, true);
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') flush(); });
 
   buildItems(); buildSwatches(); render();
   // Keep the parent homepage iframe fitted to the content, including on mobile.
