@@ -280,7 +280,7 @@ footer a:hover{text-decoration:underline}
 
   var state = {
     biz:'', bizContact:'', client:'', clientContact:'',
-    num:'INV-0001', date:iso(today), due:iso(due), cur:'USD',
+    draftId:'', num:'INV-0001', date:iso(today), due:iso(due), cur:'USD',
     tax:0, disc:0, notes:'', theme:COLORS[0],
     items:[{d:'Website design',q:1,r:500},{d:'',q:1,r:0}]
   };
@@ -293,6 +293,7 @@ footer a:hover{text-decoration:underline}
       if (!Array.isArray(state.items) || !state.items.length) state.items = [{d:'',q:1,r:0}];
     }
   } catch(e) {}
+  if (!state.draftId) { state.draftId = 'trial-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} }
 
   var $ = function(id){ return document.getElementById(id); };
   var saveTimer;
