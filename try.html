@@ -275,7 +275,7 @@ footer a:hover{text-decoration:underline}
   var COLORS = ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ef4444'];
   var COLOR_NAMES = ['Purple','Blue','Green','Amber','Red'];
 
-  function iso(d){ return d.toISOString().slice(0,10); }
+  function iso(d){ var m=d.getMonth()+1, day=d.getDate(); return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(day<10?'0':'')+day; } // local date, not UTC
   var today = new Date(), due = new Date(); due.setDate(due.getDate()+14);
 
   var state = {
