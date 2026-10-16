@@ -3,7 +3,7 @@
   if (window.__fineInvoiceEntitlementLoader) return;
   window.__fineInvoiceEntitlementLoader = true;
   const s = document.createElement('script');
-  s.src = 'js/entitlements-final.js?v=20261016-1';
+  s.src = 'js/entitlements-final.js?v=20261016-2';
   s.defer = false;
   document.head.appendChild(s);
 })();
