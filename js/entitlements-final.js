@@ -127,11 +127,45 @@
     document.body.appendChild(b);
   }
 
+  // Safety net: crop blank white rows from the bottom of the capture (keeps ~8px of padding).
+  function trimBottomWhite(c) {
+    try {
+      const ctx = c.getContext('2d'), w = c.width, h = c.height;
+      let y = h - 1;
+      for (; y >= 0; y--) {
+        const d = ctx.getImageData(0, y, w, 1).data;
+        let ink = false;
+        for (let i = 0; i < d.length; i += 4) { if (d[i] < 245 || d[i + 1] < 245 || d[i + 2] < 245) { ink = true; break; } }
+        if (ink) break;
+      }
+      const nh = Math.min(h, Math.max(1, y + 1 + 24));
+      if (y < 0 || h - nh < 12) return c;
+      const out = document.createElement('canvas');
+      out.width = w; out.height = nh;
+      const octx = out.getContext('2d');
+      octx.fillStyle = '#fff'; octx.fillRect(0, 0, w, nh);
+      octx.drawImage(c, 0, 0, w, nh, 0, 0, w, nh);
+      return out;
+    } catch (e) { return c; }
+  }
+
   async function makePdf() {
     if (!window.jspdf?.jsPDF || typeof html2canvas !== 'function') throw Error('PDF engine unavailable');
     const paper = document.querySelector('#invoiceDoc .invoice-paper');
     if (!paper) throw Error('Invoice is empty');
-    const canvas = await html2canvas(paper, { scale: 3, useCORS: true, backgroundColor: '#fff', scrollX: 0, scrollY: 0, logging: false });
+    const el = document.getElementById('invoiceDoc');
+    // css/theme.css forces .invoice-paper{min-height:1040px!important} for the on-screen preview. In the narrow
+    // preview column that is ~1.5 A4 pages tall, so the capture contained a big blank area (-> blank 2nd page).
+    // Capture at natural content height instead, then restore the preview.
+    const prevMin = paper.style.getPropertyValue('min-height'), prevPri = paper.style.getPropertyPriority('min-height');
+    paper.style.setProperty('min-height', '0', 'important');
+    let canvas;
+    try {
+      canvas = await html2canvas(paper, { scale: 3, useCORS: true, backgroundColor: '#fff', scrollX: 0, scrollY: 0, logging: false });
+    } finally {
+      if (prevMin) paper.style.setProperty('min-height', prevMin, prevPri); else paper.style.removeProperty('min-height');
+    }
+    canvas = trimBottomWhite(canvas);
     const { jsPDF } = window.jspdf;
     const W = 210, M = 6, CW = W - M * 2, CH = 297 - M * 2;
     const mm = CW / canvas.width;
