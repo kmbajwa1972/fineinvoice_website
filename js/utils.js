@@ -81,8 +81,23 @@ function saveCustomers(data) {
 }
 function saveInvoices(data) {
   const key = fiAccountStorageKey('fi_invoices');
-  if (!key) { console.warn('FineInvoice: invoice save skipped because no signed-in user is available.'); return; }
-  localStorage.setItem(key, JSON.stringify(Array.isArray(data) ? data : []));
+  if (!key) {
+    console.warn('FineInvoice: invoice save skipped because no signed-in user is available.');
+    return false;
+  }
+  const serialized = JSON.stringify(Array.isArray(data) ? data : []);
+  try {
+    localStorage.setItem(key, serialized);
+    // Do not report success unless the browser confirms the exact value was stored.
+    if (localStorage.getItem(key) !== serialized) {
+      console.error('FineInvoice: invoice storage verification failed.');
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('FineInvoice: invoice storage failed.', error);
+    return false;
+  }
 }
 function saveLicense(data) { localStorage.setItem('fi_license', JSON.stringify(data && typeof data === 'object' ? data : {})); }
 
