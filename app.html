@@ -142,7 +142,7 @@ function restoreTrialDraft(){
   return id;
  }catch(e){console.warn('Could not restore trial invoice:',e);return false}
 }
-const trialId=(!params.get('invoice')&&!params.get('template'))?restoreTrialDraft():false;
+const trialId=(!params.get('invoice')&&!params.get('template')&&!params.has('new'))?restoreTrialDraft():false;
 if(params.get('invoice')){if(!loadInvoiceById(params.get('invoice'))){invoiceLoadFailed=true;showToast('This saved invoice could not be loaded. Return to Invoices and try opening it again. No new invoice was created.','error');console.error('FineInvoice: requested invoice ID was not found in fi_invoices:',params.get('invoice'));}}else if(trialId){loadInvoiceById(trialId);showToast('Your trial invoice has been restored. Check the details and save it.','success')}else{addItem();addItem();addItem();livePreview()}
 if(params.get('template')){try{const t=JSON.parse(sessionStorage.getItem('fi_template')||'null');if(t){sessionStorage.removeItem('fi_template');document.getElementById('itemsBody').innerHTML='';(t.items||[]).forEach(addItem);if(t.notes)document.getElementById('notes').value=t.notes;if(t.color)themeColor=t.color;livePreview()}}catch(e){console.error(e)}}
 function toggleSidebar(){document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('open')}
