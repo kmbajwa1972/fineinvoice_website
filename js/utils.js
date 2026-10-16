@@ -42,7 +42,8 @@ function fiAccountStorageKey(base) {
   const user = getCurrentUser();
   const id = user && (user.id || user.email);
   if (!id) return null;
-  const safeId = String(id).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  // URL-encode instead of stripping punctuation, so distinct email-based IDs cannot collide.
+  const safeId = encodeURIComponent(String(id).toLowerCase());
   return safeId ? `${base}_${safeId}` : null;
 }
 function getCustomers() {
