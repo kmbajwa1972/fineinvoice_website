@@ -211,15 +211,27 @@
   }
 
   async function downloadPDF() {
-    const g = await gate(); if (!g) return;
+    // Open a tab immediately during the user's click so popup blockers are less likely to block the PDF preview.
+    const previewWindow = window.open('about:blank', '_blank');
+    if (previewWindow) previewWindow.opener = null;
+    let previewUrl = null;
+    const g = await gate();
+    if (!g) { if (previewWindow) previewWindow.close(); return; }
     toast('Generating PDF…', 'info');
     try {
       const doc = await makePdf();
       if (!g.already) { const r = await consumeCredit(g.u, g.id); if (!r.ok) throw Error(r.error); }
       const name = (document.getElementById('invNumber')?.value || 'invoice').replace(/[^a-z0-9._-]/gi, '_');
+      // Keep the normal download, and also show the same PDF in a new tab.
+      if (previewWindow) {
+        previewUrl = URL.createObjectURL(doc.output('blob'));
+        previewWindow.location.href = previewUrl;
+        setTimeout(() => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, 60000);
+      }
       doc.save(`${name}.pdf`);
-      toast('PDF downloaded! 🎉', 'success');
+      toast(previewWindow ? 'PDF opened and downloaded! 🎉' : 'PDF downloaded! 🎉', 'success');
     } catch (e) {
+      if (previewWindow) previewWindow.close();
       console.error('[FineInvoice] PDF generation failed:', e);
       toast(e.message || 'PDF generation failed. Your credit was not used.', 'error', 5000);
     }
