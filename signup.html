@@ -58,7 +58,7 @@ async function doSignup(){
    return;
   }
   showToast('Account created! Your 3 free PDF / Print uses are ready.','success');
-  setTimeout(()=>location.href=new URLSearchParams(location.search).get('from')==='try'?'app.html':'dashboard.html',900);
+  setTimeout(()=>location.href=new URLSearchParams(location.search).get('from')==='try'?'app.html?restoreTrial=1':'dashboard.html',900);
  }catch(e){showToast(e.message||'Unable to create account','error');btn.disabled=false;btn.textContent='Create Free Account →'}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter')doSignup()});
