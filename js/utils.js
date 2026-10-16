@@ -37,8 +37,22 @@ function getSupabase() {
 }
 function safeJsonParse(value, fallback) { try { return value ? JSON.parse(value) : fallback; } catch (err) { console.warn('FineInvoice storage reset:', err); return fallback; } }
 function escapeHtml(str) { return String(str ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch])); }
-function getCustomers() { return safeJsonParse(localStorage.getItem('fi_customers'), []); }
-function getInvoices() { return safeJsonParse(localStorage.getItem('fi_invoices'), []); }
+// Account-scoped browser storage. Legacy shared keys are preserved but never used as a fallback.
+function fiAccountStorageKey(base) {
+  const user = getCurrentUser();
+  const id = user && (user.id || user.email);
+  if (!id) return null;
+  const safeId = String(id).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return safeId ? `${base}_${safeId}` : null;
+}
+function getCustomers() {
+  const key = fiAccountStorageKey('fi_customers');
+  return key ? safeJsonParse(localStorage.getItem(key), []) : [];
+}
+function getInvoices() {
+  const key = fiAccountStorageKey('fi_invoices');
+  return key ? safeJsonParse(localStorage.getItem(key), []) : [];
+}
 function getLicense() { return safeJsonParse(localStorage.getItem('fi_license'), {}); }
 function getUsers() { return safeJsonParse(localStorage.getItem('fi_users'), []); }
 
@@ -59,8 +73,16 @@ function normalizePlanUser(user) {
 }
 function getCurrentUser() { const user = normalizePlanUser(safeJsonParse(localStorage.getItem('fi_current_user'), null)); if (user) localStorage.setItem('fi_current_user', JSON.stringify(user)); return user; }
 function saveCurrentUser(user) { if (user) localStorage.setItem('fi_current_user', JSON.stringify(normalizePlanUser(user))); else localStorage.removeItem('fi_current_user'); }
-function saveCustomers(data) { localStorage.setItem('fi_customers', JSON.stringify(Array.isArray(data) ? data : [])); }
-function saveInvoices(data) { localStorage.setItem('fi_invoices', JSON.stringify(Array.isArray(data) ? data : [])); }
+function saveCustomers(data) {
+  const key = fiAccountStorageKey('fi_customers');
+  if (!key) { console.warn('FineInvoice: customer save skipped because no signed-in user is available.'); return; }
+  localStorage.setItem(key, JSON.stringify(Array.isArray(data) ? data : []));
+}
+function saveInvoices(data) {
+  const key = fiAccountStorageKey('fi_invoices');
+  if (!key) { console.warn('FineInvoice: invoice save skipped because no signed-in user is available.'); return; }
+  localStorage.setItem(key, JSON.stringify(Array.isArray(data) ? data : []));
+}
 function saveLicense(data) { localStorage.setItem('fi_license', JSON.stringify(data && typeof data === 'object' ? data : {})); }
 
 function applyRemoteEntitlementUser(remoteUser) {
