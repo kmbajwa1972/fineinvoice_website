@@ -137,6 +137,32 @@
         </div>
       </div>
 
+      <!-- Admin-only cross-account customer directory -->
+      <div class="report-section" id="adminCustomerSection" style="display:none">
+        <div class="report-head">
+          <span class="report-title">👥 All Customers Across Accounts</span>
+          <span id="adminCustomerCount" style="font-size:12px;color:var(--muted)">Admin view</span>
+        </div>
+        <div class="report-body" style="padding:0">
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead><tr><th>Customer</th><th>Company</th><th>Email</th><th>Phone</th><th>Account</th><th>Invoices</th><th>Total billed</th></tr></thead>
+              <tbody id="adminCustomerTable"><tr><td colspan="7">Loading customer directory…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="customerDetailModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);padding:24px;overflow:auto">
+        <div style="max-width:850px;margin:5vh auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden">
+          <div class="report-head">
+            <span class="report-title" id="customerDetailTitle">Customer details</span>
+            <button class="export-btn" onclick="closeCustomerDetails()">Close ✕</button>
+          </div>
+          <div class="report-body" id="customerDetailBody"></div>
+        </div>
+      </div>
+
       <!-- Invoice list -->
       <div class="report-section">
         <div class="report-head">
@@ -315,10 +341,89 @@ function normalizeCloudInvoice(row){
   };
 }
 
+let adminCustomers = [];
+let adminReportMode = false;
+
+function htmlEscape(value){
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function customerTotal(customer){
+  return (customer.invoices || []).reduce((sum, inv) => sum + Number(inv.total || 0), 0);
+}
+function renderAdminCustomers(){
+  const section = document.getElementById('adminCustomerSection');
+  if(!section) return;
+  section.style.display = adminReportMode ? 'block' : 'none';
+  if(!adminReportMode) return;
+  const body = document.getElementById('adminCustomerTable');
+  document.getElementById('adminCustomerCount').textContent = `${adminCustomers.length} customer records`;
+  if(!adminCustomers.length){
+    body.innerHTML = '<tr><td colspan="7"><div class="empty-report" style="padding:24px">No saved customer profiles or invoice customer names were found.</div></td></tr>';
+    return;
+  }
+  body.innerHTML = adminCustomers.map((c, i) => {
+    const count = (c.invoices || []).length;
+    const total = customerTotal(c);
+    return `<tr>
+      <td><button class="export-btn" onclick="openCustomerDetails(${i})" style="text-align:left">${htmlEscape(c.name || 'Unnamed customer')}</button></td>
+      <td>${htmlEscape(c.company || '—')}</td><td>${htmlEscape(c.email || '—')}</td>
+      <td>${htmlEscape(c.phone || '—')}</td><td>${htmlEscape(c.account_email || '—')}</td>
+      <td>${count}</td><td>${htmlEscape((c.invoices?.[0]?.currency || 'PKR') + ' ' + fmt(total))}</td>
+    </tr>`;
+  }).join('');
+}
+function openCustomerDetails(index){
+  const c = adminCustomers[index];
+  if(!c) return;
+  document.getElementById('customerDetailTitle').textContent = c.name || 'Customer details';
+  const invoices = c.invoices || [];
+  const rows = invoices.length ? invoices.map(inv => `<tr>
+    <td>${htmlEscape(inv.inv_number || inv.id || '—')}</td>
+    <td>${htmlEscape(inv.inv_date || inv.created_at ? new Date(inv.inv_date || inv.created_at).toLocaleDateString('en-PK') : '—')}</td>
+    <td>${htmlEscape(inv.currency || 'PKR')} ${htmlEscape(fmt(inv.total))}</td>
+    <td>${htmlEscape(inv.status || 'saved')}</td>
+    <td>${htmlEscape(inv.notes || '—')}</td>
+  </tr>`).join('') : '<tr><td colspan="5">No cloud invoices linked to this customer yet.</td></tr>';
+  document.getElementById('customerDetailBody').innerHTML = `
+    <div class="report-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:18px">
+      <div class="stat"><div class="stat-lbl">Company</div><div>${htmlEscape(c.company || '—')}</div></div>
+      <div class="stat"><div class="stat-lbl">Email</div><div>${htmlEscape(c.email || '—')}</div></div>
+      <div class="stat"><div class="stat-lbl">Phone</div><div>${htmlEscape(c.phone || '—')}</div></div>
+      <div class="stat"><div class="stat-lbl">Account</div><div>${htmlEscape(c.account_email || '—')}</div></div>
+    </div>
+    <p style="margin:0 0 18px"><strong>Address:</strong> ${htmlEscape(c.address || '—')}</p>
+    <p style="margin:0 0 10px"><strong>Invoices:</strong> ${invoices.length} &nbsp; <strong>Total billed:</strong> ${htmlEscape((invoices[0]?.currency || 'PKR') + ' ' + fmt(customerTotal(c)))}</p>
+    <div class="table-wrap"><table class="report-table"><thead><tr><th>Invoice</th><th>Date</th><th>Amount</th><th>Status</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById('customerDetailModal').style.display = 'block';
+}
+function closeCustomerDetails(){ document.getElementById('customerDetailModal').style.display = 'none'; }
+
 async function loadReports(){
   const tbody = document.getElementById('invoiceTable');
-  if(tbody) tbody.innerHTML = '<tr><td colspan="6"><div class="empty-report" style="padding:24px">Loading your cloud invoices…</div></td></tr>';
+  if(tbody) tbody.innerHTML = '<tr><td colspan="6"><div class="empty-report" style="padding:24px">Loading cloud invoices…</div></td></tr>';
 
+  // Cross-account data is available only to the server-verified administrator.
+  if(_u && _u.isAdmin){
+    const client = typeof getSupabase === 'function' ? getSupabase() : null;
+    if(client){
+      const { data, error } = await client.functions.invoke('admin-report-data', { body: {} });
+      if(!error && data && data.data){
+        adminReportMode = true;
+        adminCustomers = Array.isArray(data.data.customers) ? data.data.customers : [];
+        allInvoices = (Array.isArray(data.data.invoices) ? data.data.invoices : []).map(normalizeCloudInvoice);
+        // Preserve account context for the administrator's combined invoice list.
+        allInvoices = allInvoices.map((inv, i) => ({...inv, accountEmail: data.data.invoices[i]?.account_email || ''}));
+        renderAdminCustomers();
+        renderReports();
+        return;
+      }
+      console.error('Admin reports load failed:', error || data?.error);
+      if(typeof showToast === 'function') showToast('Could not load the all-account report. Check admin authorization and retry.', 'error', 7000);
+    }
+  }
+
+  adminReportMode = false;
+  renderAdminCustomers();
   if(window.fineInvoiceCloud && typeof window.fineInvoiceCloud.loadCloudInvoices === 'function'){
     const result = await window.fineInvoiceCloud.loadCloudInvoices();
     if(result.error){
@@ -330,11 +435,7 @@ async function loadReports(){
     }
     allInvoices = (Array.isArray(result.data) ? result.data : []).map(normalizeCloudInvoice);
   } else {
-    // Compatibility fallback for an older deployment without cloud-data.js.
     allInvoices = typeof getInvoices === 'function' ? getInvoices() : [];
-    if(typeof showToast === 'function' && allInvoices.length === 0) {
-      showToast('Cloud invoice service is unavailable on this page. Please refresh and try again.', 'error', 6000);
-    }
   }
   renderReports();
 }
