@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
     });
     grouped.set(key, entry);
   }
-  return respond({ data: { invoices, customers: [...grouped.values()], accounts: users.map((u) => ({
+  return respond({ data: { invoices, customers: [...new Set(grouped.values())], accounts: users.map((u) => ({
     id: u.id, email: u.email ?? "", name: String(u.user_metadata?.name ?? u.user_metadata?.full_name ?? u.email ?? ""),
   })) } });
 });
