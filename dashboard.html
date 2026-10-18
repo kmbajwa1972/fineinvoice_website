@@ -327,23 +327,71 @@ if(user){
     a.classList.toggle('active', a.getAttribute('href')==='dashboard.html');
   });
 
-  // Activity
-  const activities = [];
-  invoices.slice(-4).reverse().forEach(inv=>{
-    activities.push({ico:'📄',cls:'inv',t:`Invoice for ${inv.customer||'client'}`,d:inv.date?new Date(inv.date).toLocaleDateString():'—'});
-  });
-  customers.slice(-2).reverse().forEach(c=>{
-    activities.push({ico:'👤',cls:'cust',t:`Customer: ${c.name}`,d:'Saved'});
-  });
+  function renderDashboardActivity(invoiceRows = getInvoices(), customerRows = getCustomers()) {
+    const activities = [];
+    [...invoiceRows].sort((a,b)=>new Date(b.invDate||b.date||b.created_at||0)-new Date(a.invDate||a.date||a.created_at||0)).slice(0,4).forEach(inv=>{
+      const date = inv.invDate || inv.date || inv.created_at;
+      activities.push({ico:'📄',cls:'inv',t:`Invoice for ${inv.customer||'client'}`,d:date?new Date(date).toLocaleDateString():'—'});
+    });
+    [...customerRows].slice(-2).reverse().forEach(c=>{
+      activities.push({ico:'👤',cls:'cust',t:`Customer: ${c.name}`,d:'Saved'});
+    });
+    const list = document.getElementById('actList');
+    list.innerHTML = activities.length===0
+      ? '<div style="padding:20px 0;color:rgba(255,255,255,.3);font-size:14px;">No activity yet — create your first invoice!</div>'
+      : activities.map(a=>`
+          <div class="act-item">
+            <div class="act-ico ${a.cls}">${a.ico}</div>
+            <div class="act-meta"><div class="t">${a.t}</div><div class="d">${a.d}</div></div>
+          </div>`).join('');
+  }
+  renderDashboardActivity(invoices, customers);
 
-  const list = document.getElementById('actList');
-  list.innerHTML = activities.length===0
-    ? '<div style="padding:20px 0;color:rgba(255,255,255,.3);font-size:14px;">No activity yet — create your first invoice!</div>'
-    : activities.map(a=>`
-        <div class="act-item">
-          <div class="act-ico ${a.cls}">${a.ico}</div>
-          <div class="act-meta"><div class="t">${a.t}</div><div class="d">${a.d}</div></div>
-        </div>`).join('');
+  // The Invoices page loads account-owned cloud invoices, but the dashboard previously
+  // rendered activity from browser cache only. Hydrate the dashboard from that same
+  // authenticated cloud source so existing cloud invoices appear in Recent Activity.
+  window.addEventListener('load', async () => {
+    try {
+      const cloud = window.fineInvoiceCloud;
+      if (!cloud || typeof cloud.loadCloudInvoices !== 'function') return;
+      const result = await cloud.loadCloudInvoices();
+      if (result.error || !Array.isArray(result.data)) {
+        console.warn('Dashboard recent activity cloud load failed:', result.error);
+        return;
+      }
+      const cloudRows = result.data.map(row => {
+        const p = row.payload && typeof row.payload === 'object' ? row.payload : {};
+        return {
+          ...p,
+          id: String(row.id),
+          invNumber: row.inv_number || p.invNumber || '',
+          company: row.company || p.company || '',
+          customer: row.customer || p.customer || '',
+          currency: row.currency || p.currency || 'USD',
+          total: Number(row.total ?? p.total ?? 0),
+          status: row.status || p.status || 'saved',
+          invDate: row.inv_date || p.invDate || row.created_at || p.date || '',
+          date: row.inv_date || p.invDate || row.created_at || p.date || ''
+        };
+      });
+      const localRows = getInvoices().map(row => ({...row}));
+      const merged = [...localRows];
+      for (const row of cloudRows) {
+        const idx = merged.findIndex(local =>
+          String(local.id) === String(row.id) ||
+          (row.id && String(local.cloudId || '') === String(row.id)) ||
+          (row.payload?.legacy_id != null && String(row.payload.legacy_id) === String(row.id))
+        );
+        if (idx >= 0) merged[idx] = {...merged[idx], ...row};
+        else merged.push(row);
+      }
+      saveInvoices(merged);
+      document.getElementById('invoiceCount').textContent = cloudRows.length;
+      renderDashboardActivity(cloudRows, getCustomers());
+    } catch (e) {
+      console.warn('Dashboard cloud activity refresh failed:', e);
+    }
+  });
 }
 
 function toggleSidebar(){
