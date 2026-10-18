@@ -19,4 +19,7 @@
   <url><loc>https://fineinvoice.com/terms.html</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
   <url><loc>https://fineinvoice.com/cookie-policy.html</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
   <url><loc>https://fineinvoice.com/refund-policy.html</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://fineinvoice.com/guides/free-invoice-templates.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://fineinvoice.com/guides/invoicing-in-foreign-currency.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://fineinvoice.com/guides/invoice-line-items-tax-discount.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
