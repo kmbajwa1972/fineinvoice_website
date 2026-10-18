@@ -137,6 +137,32 @@
         </div>
       </div>
 
+      <!-- Admin-only cross-account receipt directory -->
+      <div class="report-section" id="adminReceiptSection" style="display:none">
+        <div class="report-head">
+          <span class="report-title">🧾 All Receipts Across Accounts</span>
+          <span id="adminReceiptCount" style="font-size:12px;color:var(--muted)">Admin view</span>
+        </div>
+        <div class="report-body" style="padding:0">
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead><tr><th>Receipt #</th><th>Customer</th><th>Account</th><th>Date</th><th>Currency</th><th style="text-align:right">Amount</th><th>Details</th></tr></thead>
+              <tbody id="adminReceiptTable"><tr><td colspan="7">Loading receipts…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="adminReceiptDetailModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);padding:24px;overflow:auto">
+        <div style="max-width:850px;margin:5vh auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden">
+          <div class="report-head">
+            <span class="report-title" id="adminReceiptDetailTitle">Receipt details</span>
+            <button class="export-btn" onclick="closeAdminReceiptDetails()">Close ✕</button>
+          </div>
+          <div class="report-body" id="adminReceiptDetailBody"></div>
+        </div>
+      </div>
+
       <!-- Admin-only cross-account customer directory -->
       <div class="report-section" id="adminCustomerSection" style="display:none">
         <div class="report-head">
@@ -342,7 +368,60 @@ function normalizeCloudInvoice(row){
 }
 
 let adminCustomers = [];
+let adminReceipts = [];
 let adminReportMode = false;
+
+function renderAdminReceipts(){
+  const section = document.getElementById('adminReceiptSection');
+  if(!section) return;
+  section.style.display = adminReportMode && _u && _u.isAdmin ? 'block' : 'none';
+  if(section.style.display === 'none') return;
+  const body = document.getElementById('adminReceiptTable');
+  document.getElementById('adminReceiptCount').textContent = `${adminReceipts.length} receipt records`;
+  if(!adminReceipts.length){
+    body.innerHTML = '<tr><td colspan="7"><div class="empty-report" style="padding:24px">No cloud receipts found.</div></td></tr>';
+    return;
+  }
+  body.innerHTML = adminReceipts.map((r, i) => {
+    const p = r.payload && typeof r.payload === 'object' ? r.payload : {};
+    const date = r.receipt_date || p.date || r.created_at || '';
+    return `<tr>
+      <td><strong>${htmlEscape(r.receipt_number || p.number || '—')}</strong></td>
+      <td>${htmlEscape(r.customer || p.customer || '—')}</td>
+      <td>${htmlEscape(r.account_email || '—')}</td>
+      <td>${htmlEscape(date ? new Date(date).toLocaleDateString('en-PK') : '—')}</td>
+      <td>${htmlEscape(r.currency || p.currency || 'PKR')}</td>
+      <td style="text-align:right;font-weight:700">${htmlEscape(fmt(Number(r.total ?? p.total ?? 0)))}</td>
+      <td><button class="export-btn" onclick="openAdminReceiptDetails(${i})">View</button></td>
+    </tr>`;
+  }).join('');
+}
+function openAdminReceiptDetails(index){
+  if(!_u || !_u.isAdmin) return;
+  const r = adminReceipts[index];
+  if(!r) return;
+  const p = r.payload && typeof r.payload === 'object' ? r.payload : {};
+  const items = Array.isArray(p.items) ? p.items : [];
+  const currency = r.currency || p.currency || 'PKR';
+  const itemRows = items.map(it => `<tr><td>${htmlEscape(it.desc || '—')}</td><td>${htmlEscape(it.qty ?? 0)}</td><td>${htmlEscape(fmt(it.rate ?? 0))}</td><td>${htmlEscape(fmt(Number(it.qty || 0) * Number(it.rate || 0)))}</td></tr>`).join('');
+  const label = r.receipt_number || p.number || 'Receipt details';
+  document.getElementById('adminReceiptDetailTitle').textContent = label;
+  document.getElementById('adminReceiptDetailBody').innerHTML = `
+    <div class="report-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:18px">
+      <div class="stat"><div class="stat-lbl">Account</div><div>${htmlEscape(r.account_email || '—')}</div></div>
+      <div class="stat"><div class="stat-lbl">Customer</div><div>${htmlEscape(r.customer || p.customer || '—')}</div></div>
+      <div class="stat"><div class="stat-lbl">Company</div><div>${htmlEscape(r.company || p.company || '—')}</div></div>
+      <div class="stat"><div class="stat-lbl">Date</div><div>${htmlEscape(r.receipt_date || p.date || '—')}</div></div>
+      <div class="stat"><div class="stat-lbl">Payment method</div><div>${htmlEscape(p.payMethod || 'Cash')}</div></div>
+      <div class="stat"><div class="stat-lbl">Amount paid</div><div>${htmlEscape(currency + ' ' + fmt(Number(r.total ?? p.total ?? 0)))}</div></div>
+    </div>
+    <div class="table-wrap"><table class="report-table"><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${itemRows || '<tr><td colspan="4">No item details saved.</td></tr>'}</tbody></table></div>
+    <p style="margin:14px 0 0"><strong>Tax:</strong> ${htmlEscape(fmt(p.taxAmt ?? 0))} &nbsp; <strong>Discount:</strong> ${htmlEscape(fmt(p.discAmt ?? 0))}</p>
+    ${p.notes ? `<p style="margin:12px 0 0"><strong>Notes:</strong> ${htmlEscape(p.notes)}</p>` : ''}
+  `;
+  document.getElementById('adminReceiptDetailModal').style.display = 'block';
+}
+function closeAdminReceiptDetails(){ document.getElementById('adminReceiptDetailModal').style.display = 'none'; }
 
 function htmlEscape(value){
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -410,10 +489,12 @@ async function loadReports(){
       if(!error && data && data.data){
         adminReportMode = true;
         adminCustomers = Array.isArray(data.data.customers) ? data.data.customers : [];
+        adminReceipts = Array.isArray(data.data.receipts) ? data.data.receipts : [];
         allInvoices = (Array.isArray(data.data.invoices) ? data.data.invoices : []).map(normalizeCloudInvoice);
         // Preserve account context for the administrator's combined invoice list.
         allInvoices = allInvoices.map((inv, i) => ({...inv, accountEmail: data.data.invoices[i]?.account_email || ''}));
         renderAdminCustomers();
+        renderAdminReceipts();
         renderReports();
         return;
       }
