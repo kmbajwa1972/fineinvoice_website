@@ -297,9 +297,54 @@ function exportCSV(){
   showToast('CSV exported ✅', 'success');
 }
 
-// Basic invoice reports are available on every plan; only premium revenue analytics are gated.
-allInvoices = getInvoices();
-renderReports();
+// Load reports from the same account-scoped cloud source as the Invoices page.
+// The cloud table uses snake_case columns; normalize them to the fields used by this report.
+function normalizeCloudInvoice(row){
+  const payload = row && row.payload && typeof row.payload === 'object' ? row.payload : {};
+  return {
+    ...payload,
+    id: row.id || payload.id || payload.legacy_id || '',
+    invNumber: row.inv_number || payload.invNumber || payload.invoice_number || '',
+    customer: row.customer || payload.customer || '',
+    date: row.inv_date || payload.invDate || payload.date || row.created_at || '',
+    currency: row.currency || payload.currency || 'PKR',
+    total: Number(row.total ?? payload.total ?? 0),
+    status: row.status || payload.status || 'saved',
+    company: row.company || payload.company || '',
+    custEmail: row.cust_email || payload.custEmail || ''
+  };
+}
+
+async function loadReports(){
+  const tbody = document.getElementById('invoiceTable');
+  if(tbody) tbody.innerHTML = '<tr><td colspan="6"><div class="empty-report" style="padding:24px">Loading your cloud invoices…</div></td></tr>';
+
+  if(window.fineInvoiceCloud && typeof window.fineInvoiceCloud.loadCloudInvoices === 'function'){
+    const result = await window.fineInvoiceCloud.loadCloudInvoices();
+    if(result.error){
+      console.error('Reports: cloud invoice load failed:', result.error);
+      allInvoices = [];
+      renderReports();
+      if(typeof showToast === 'function') showToast('Could not load cloud invoices: ' + (result.error.message || 'Please sign in again.'), 'error', 6000);
+      return;
+    }
+    allInvoices = (Array.isArray(result.data) ? result.data : []).map(normalizeCloudInvoice);
+  } else {
+    // Compatibility fallback for an older deployment without cloud-data.js.
+    allInvoices = typeof getInvoices === 'function' ? getInvoices() : [];
+    if(typeof showToast === 'function' && allInvoices.length === 0) {
+      showToast('Cloud invoice service is unavailable on this page. Please refresh and try again.', 'error', 6000);
+    }
+  }
+  renderReports();
+}
+
+loadReports().catch(error => {
+  console.error('Reports initialization failed:', error);
+  allInvoices = [];
+  renderReports();
+  if(typeof showToast === 'function') showToast('Reports could not be loaded. Please refresh and try again.', 'error', 6000);
+});
 </script>
 </body>
 </html>
