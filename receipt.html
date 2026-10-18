@@ -249,7 +249,17 @@
             <button class="btn btn-primary btn-lg" onclick="saveReceipt()" style="flex:1">💾 Save</button>
             <button class="btn btn-outline btn-lg" onclick="printReceipt()" style="flex:1">🖨️ Print</button>
             <button class="btn btn-outline btn-lg" onclick="downloadReceiptPDF()" style="flex:1">📥 PDF</button>
+            <div class="form-section" id="savedReceiptsSection">
+            <div class="form-section-head">🧾 Saved Receipts</div>
+            <div class="form-section-body">
+              <p style="margin:0;color:var(--muted);font-size:13px">Receipts saved to your account. Select Load to reopen a receipt for review or editing.</p>
+              <div id="savedReceiptsList" aria-live="polite" style="display:flex;flex-direction:column;gap:10px">
+                <span style="color:var(--muted);font-size:13px">Loading saved receipts…</span>
+              </div>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="loadSavedReceipts()">↻ Refresh receipt history</button>
+            </div>
           </div>
+        </div>
         </div>
 
         <!-- Preview -->
@@ -297,6 +307,7 @@ if(rUserData) document.getElementById('rCompany').value = rUserData.name || '';
 
 addRItem(); addRItem();
 liveReceipt();
+loadSavedReceipts();
 
 function loadLogo(input){
   const file = input.files[0]; if(!file) return;
@@ -469,6 +480,7 @@ async function saveReceipt(){
     if(existingIndex >= 0) local[existingIndex] = { ...local[existingIndex], ...entry };
     else local.push(entry);
     localStorage.setItem('fi_receipts', JSON.stringify(local));
+    await loadSavedReceipts();
     showToast('Receipt saved securely to your account ☁️', 'success', 4500);
   } catch(error) {
     console.error('FineInvoice receipt cloud save failed:', error);
@@ -476,6 +488,131 @@ async function saveReceipt(){
   } finally {
     if(button){ button.disabled = false; button.textContent = '💾 Save'; }
   }
+}
+
+function receiptText(value){
+  return String(value ?? '');
+}
+
+function renderSavedReceiptRow(item, source){
+  const payload = item.payload && typeof item.payload === 'object' ? item.payload : {};
+  const number = item.receipt_number || item.number || payload.number || 'Receipt';
+  const customer = item.customer || payload.customer || 'Customer';
+  const currency = item.currency || payload.currency || 'PKR';
+  const total = Number(item.total ?? payload.total ?? 0);
+  const date = item.receipt_date || item.date || payload.date || '';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)';
+  const details = document.createElement('div');
+  details.style.cssText = 'min-width:0;flex:1';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-weight:700;overflow-wrap:anywhere';
+  title.textContent = number;
+  const meta = document.createElement('div');
+  meta.style.cssText = 'font-size:12px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere';
+  meta.textContent = customer + ' · ' + (date || 'No date') + ' · ' + currency + ' ' + total.toFixed(2) + (source === 'local' ? ' · Browser copy' : '');
+  details.append(title, meta);
+  const load = document.createElement('button');
+  load.type = 'button';
+  load.className = 'btn btn-outline btn-sm';
+  load.textContent = 'Load';
+  load.addEventListener('click', () => restoreSavedReceipt(item));
+  row.append(details, load);
+  return row;
+}
+
+async function loadSavedReceipts(){
+  const list = document.getElementById('savedReceiptsList');
+  if(!list) return;
+  list.replaceChildren();
+  const loading = document.createElement('span');
+  loading.style.cssText = 'color:var(--muted);font-size:13px';
+  loading.textContent = 'Loading saved receipts…';
+  list.appendChild(loading);
+  let cloudItems = [];
+  let cloudLoaded = false;
+  try {
+    const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+    if(sb){
+      const { data: authData } = await sb.auth.getUser();
+      const user = authData?.user;
+      if(user?.id){
+        const { data, error } = await sb.from('receipts')
+          .select('id,user_id,receipt_number,company,customer,total,currency,receipt_date,payload,created_at,updated_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending:false });
+        if(error) throw error;
+        cloudItems = data || [];
+        cloudLoaded = true;
+      }
+    }
+  } catch(error) {
+    console.error('Could not load cloud receipt history:', error);
+  }
+  let localItems = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem('fi_receipts') || '[]');
+    if(Array.isArray(parsed)) localItems = parsed;
+  } catch(error) {
+    console.warn('Local receipt history could not be read:', error);
+  }
+  list.replaceChildren();
+  const seen = new Set();
+  const merged = [];
+  cloudItems.forEach(item => {
+    const key = String(item.receipt_number || item.number || '');
+    if(key) seen.add(key);
+    merged.push({ item, source:'cloud' });
+  });
+  localItems.forEach(item => {
+    const key = String(item.receipt_number || item.number || '');
+    if(key && seen.has(key)) return;
+    merged.push({ item, source:'local' });
+  });
+  if(!merged.length){
+    const empty = document.createElement('span');
+    empty.style.cssText = 'color:var(--muted);font-size:13px';
+    empty.textContent = cloudLoaded ? 'No saved receipts yet.' : 'No receipts found in this account or this browser.';
+    list.appendChild(empty);
+    return;
+  }
+  merged.forEach(({item,source}) => list.appendChild(renderSavedReceiptRow(item,source)));
+}
+
+function restoreSavedReceipt(item){
+  const payload = item.payload && typeof item.payload === 'object' ? item.payload : item;
+  const setValue = (id, value) => {
+    const el = document.getElementById(id);
+    if(el && value !== undefined && value !== null) el.value = value;
+  };
+  setValue('rCompany', payload.company || item.company);
+  setValue('rEmail', payload.sellerContact || '');
+  setValue('rCustomer', payload.customer || item.customer);
+  setValue('rPhone', payload.customerPhone || '');
+  setValue('rNumber', payload.number || item.receipt_number || item.number);
+  setValue('rDate', payload.date || item.receipt_date || item.date || '');
+  setValue('rCurrency', payload.currency || item.currency || 'PKR');
+  setValue('rPayMethod', payload.payMethod || 'Cash');
+  setValue('rShowPaid', payload.showPaid === false ? 'no' : 'yes');
+  setValue('rColor', payload.color || '#00C48C');
+  setValue('rTax', payload.taxPercent ?? 0);
+  setValue('rDiscount', payload.discountPercent ?? 0);
+  setValue('rNotes', payload.notes || '');
+  rLogoData = payload.logoData || '';
+  const tbody = document.getElementById('rItemsBody');
+  tbody.replaceChildren();
+  const items = Array.isArray(payload.items) && payload.items.length ? payload.items : [{desc:'',qty:1,rate:0}];
+  items.forEach(itemData => {
+    addRItem();
+    const row = tbody.lastElementChild;
+    const inputs = row.querySelectorAll('input');
+    inputs[0].value = itemData.desc || '';
+    inputs[1].value = itemData.qty ?? 1;
+    inputs[2].value = itemData.rate ?? 0;
+  });
+  liveReceipt();
+  window.scrollTo({ top:0, behavior:'smooth' });
+  showToast('Saved receipt loaded. Save again to update it.', 'success', 3500);
 }
 
 function printReceipt(){
