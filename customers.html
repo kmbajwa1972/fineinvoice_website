@@ -98,12 +98,14 @@
         </div>
       </div>
 
-      <div class="section-head mb-4">
+      <div class="section-head mb-4" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
           <div class="section-title" style="font-size:18px">Customer List</div>
           <div class="text-muted text-sm mt-1" id="custCountLabel">0 customers</div>
         </div>
+        <button class="btn btn-outline" id="syncCustomersBtn" onclick="syncLocalCustomersToCloud()">☁️ Sync saved customers to cloud</button>
       </div>
+      <p class="text-muted text-sm mb-4" id="customerSyncStatus">Your customer records stay in this account. Use sync to make saved profiles available to secure cloud reports.</p>
 
       <div class="search-bar">
         <div class="search-wrap">
@@ -173,9 +175,17 @@ function saveCustomer(){
   }
 
   saveCustomers(customers);
+  const wasEdit = Boolean(editId);
   cancelEdit();
-  showToast(editId ? 'Customer updated ✅' : 'Customer added ✅', 'success');
   renderCustomers();
+  // Keep the local save as the source of truth; cloud sync is additive and reports failures.
+  syncCustomerRecords(customers).then(result => {
+    if(result.errors.length) {
+      showToast((wasEdit ? 'Customer updated locally; cloud sync needs attention: ' : 'Customer saved locally; cloud sync needs attention: ') + result.errors[0], 'error', 7000);
+    } else {
+      showToast(wasEdit ? 'Customer updated and synced ✅' : 'Customer added and synced ✅', 'success');
+    }
+  });
 }
 
 function editCustomer(id){
@@ -247,6 +257,73 @@ function renderCustomers(){
       </td>
     </tr>`;
   }).join('');
+}
+
+async function syncCustomerRecords(records) {
+  const errors = [];
+  const client = typeof getSupabase === 'function' ? getSupabase() : null;
+  if(!client) return { synced: 0, errors: ['Supabase client is unavailable. Refresh and sign in again.'] };
+  const auth = await client.auth.getUser();
+  const user = auth.data?.user;
+  if(auth.error || !user?.id) return { synced: 0, errors: ['Your signed-in Supabase session could not be verified.'] };
+  let synced = 0;
+  const updated = Array.isArray(records) ? records.map(c => ({...c})) : [];
+  for(let i=0;i<updated.length;i++) {
+    const c = updated[i];
+    const row = { user_id:user.id, name:String(c.name||'').trim(), company:String(c.company||'').trim()||null,
+      email:String(c.email||'').trim()||null, phone:String(c.phone||'').trim()||null,
+      address:String(c.address||'').trim()||null, payload:{ local_id:String(c.id??''), createdAt:c.createdAt||null } };
+    if(!row.name) continue;
+    try {
+      let existing = null;
+      if(c.cloudId) {
+        const found = await client.from('customers').select('id').eq('id',c.cloudId).eq('user_id',user.id).maybeSingle();
+        if(found.error) throw found.error;
+        existing = found.data;
+      }
+      if(!existing) {
+        let query = client.from('customers').select('id').eq('user_id',user.id).ilike('name',row.name);
+        if(row.email) query = query.ilike('email',row.email);
+        const found = await query.limit(1).maybeSingle();
+        if(found.error) throw found.error;
+        existing = found.data;
+      }
+      let saved;
+      if(existing) saved = await client.from('customers').update(row).eq('id',existing.id).eq('user_id',user.id).select('id').single();
+      else saved = await client.from('customers').insert(row).select('id').single();
+      if(saved.error) throw saved.error;
+      updated[i].cloudId = saved.data.id;
+      synced++;
+    } catch(e) {
+      console.error('Customer cloud sync failed for', c.name, e);
+      errors.push((c.name || 'Customer') + ': ' + (e?.message || 'cloud save failed'));
+    }
+  }
+  // Preserve all original local fields and only add cloud IDs after successful writes.
+  if(synced) saveCustomers(updated);
+  return {synced, errors};
+}
+
+async function syncLocalCustomersToCloud() {
+  const btn = document.getElementById('syncCustomersBtn');
+  const status = document.getElementById('customerSyncStatus');
+  if(btn) btn.disabled = true;
+  if(status) status.textContent = 'Syncing saved customer profiles…';
+  try {
+    const records = getCustomers();
+    const result = await syncCustomerRecords(records);
+    if(status) status.textContent = result.errors.length
+      ? `Synced ${result.synced} customer(s); ${result.errors.length} need attention. Your local records remain preserved.`
+      : `Successfully synced ${result.synced} customer(s) to your account's cloud storage.`;
+    if(result.errors.length) showToast(result.errors[0], 'error', 7000);
+    else showToast('Customer sync complete ✅', 'success');
+  } catch(e) {
+    console.error('Customer sync failed', e);
+    if(status) status.textContent = 'Sync failed. Your local customer records have been preserved.';
+    showToast('Customer sync failed. Local records were not deleted.', 'error', 7000);
+  } finally {
+    if(btn) btn.disabled = false;
+  }
 }
 
 renderCustomers();
