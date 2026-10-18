@@ -228,8 +228,8 @@
                   </div>
                 </div>
                 <div class="total-row"><span class="label">Subtotal</span><span class="value" id="rSubtotal">0.00</span></div>
-                <div class="total-row"><span class="label">Tax</span><span class="value" id="rTaxAmt">0.00</span></div>
                 <div class="total-row"><span class="label">Discount</span><span class="value" id="rDiscAmt">-0.00</span></div>
+                <div class="total-row"><span class="label">Tax</span><span class="value" id="rTaxAmt">0.00</span></div>
                 <div class="total-row total-final"><span class="label">Amount Paid</span><span class="value" id="rTotal">0.00</span></div>
               </div>
             </div>
@@ -400,8 +400,8 @@ function liveReceipt(){
     </table>
     <div class="rcpt-totals">
       <div>Subtotal: <strong>${sym}${subtotal.toFixed(2)}</strong></div>
-      ${taxAmt  ? `<div>Tax: <strong>${sym}${taxAmt.toFixed(2)}</strong></div>` : ''}
       ${discAmt ? `<div>Discount: <strong>−${sym}${discAmt.toFixed(2)}</strong></div>` : ''}
+      ${taxAmt  ? `<div>Tax: <strong>${sym}${taxAmt.toFixed(2)}</strong></div>` : ''}
       <div class="rcpt-grand" style="color:${color};border-color:${color}">
         Amount Paid: ${sym}${total.toFixed(2)}
       </div>
