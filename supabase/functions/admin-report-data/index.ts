@@ -22,13 +22,15 @@ Deno.serve(async (req) => {
   const email = auth.user?.email?.toLowerCase();
   if (authError || !email || !ADMIN_EMAILS.includes(email)) return respond({ error: "Not authorized" }, 403);
 
-  const [invoiceResult, customerResult, usersResult] = await Promise.all([
+  const [invoiceResult, customerResult, receiptResult, usersResult] = await Promise.all([
     admin.from("invoices").select("*").order("created_at", { ascending: false }),
     admin.from("customers").select("*").order("created_at", { ascending: false }),
+    admin.from("receipts").select("*").order("created_at", { ascending: false }),
     admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
   ]);
   if (invoiceResult.error) return respond({ error: "Could not load invoices" }, 500);
   if (customerResult.error) return respond({ error: "Could not load customers" }, 500);
+  if (receiptResult.error) return respond({ error: "Could not load receipts" }, 500);
   if (usersResult.error) return respond({ error: "Could not load account directory" }, 500);
 
   const users = usersResult.data.users ?? [];
@@ -92,7 +94,12 @@ Deno.serve(async (req) => {
     });
     grouped.set(key, entry);
   }
-  return respond({ data: { invoices, customers: [...new Set(grouped.values())], accounts: users.map((u) => ({
+  const receipts = (receiptResult.data ?? []).map((row) => ({
+    ...row,
+    account_email: userById.get(row.user_id)?.email ?? "",
+    account_name: userById.get(row.user_id)?.name ?? "",
+  }));
+  return respond({ data: { invoices, receipts, customers: [...new Set(grouped.values())], accounts: users.map((u) => ({
     id: u.id, email: u.email ?? "", name: String(u.user_metadata?.name ?? u.user_metadata?.full_name ?? u.email ?? ""),
   })) } });
 });
