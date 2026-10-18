@@ -412,21 +412,67 @@ function liveReceipt(){
   `;
 }
 
-function saveReceipt(){
-  const company = document.getElementById('rCompany').value;
+async function saveReceipt(){
+  const company = document.getElementById('rCompany').value.trim();
+  const customer = document.getElementById('rCustomer').value.trim();
+  const receiptNumber = document.getElementById('rNumber').value.trim();
   if(!company){ showToast('Enter business name', 'error'); return; }
-  const { total } = calcReceiptTotals();
-  const receipts  = JSON.parse(localStorage.getItem('fi_receipts')||'[]');
-  receipts.push({
-    id: 'REC-' + Date.now(),
-    company, customer: document.getElementById('rCustomer').value,
-    total, currency: document.getElementById('rCurrency').value,
-    number: document.getElementById('rNumber').value,
-    date: document.getElementById('rDate').value,
-    savedAt: new Date().toISOString()
-  });
-  localStorage.setItem('fi_receipts', JSON.stringify(receipts));
-  showToast('Receipt saved ✅', 'success');
+  if(!receiptNumber){ showToast('Enter a receipt number', 'error'); return; }
+  if(!customer){ showToast('Enter customer name', 'error'); return; }
+
+  const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+  if(!sb){ showToast('Cloud database is unavailable. Your receipt was not synced.', 'error', 5000); return; }
+  const { data: authData, error: authError } = await sb.auth.getUser();
+  const user = authData?.user;
+  if(authError || !user?.id){ showToast('Your session has expired. Please sign in again.', 'error', 5000); return; }
+
+  const { subtotal, taxAmt, discAmt, total } = calcReceiptTotals();
+  const currency = document.getElementById('rCurrency').value;
+  const receiptDate = document.getElementById('rDate').value || null;
+  const payload = {
+    company, sellerContact: document.getElementById('rEmail').value.trim(),
+    customer, customerPhone: document.getElementById('rPhone').value.trim(),
+    number: receiptNumber, date: receiptDate, currency,
+    payMethod: document.getElementById('rPayMethod').value,
+    showPaid: document.getElementById('rShowPaid').value === 'yes',
+    color: document.getElementById('rColor').value,
+    notes: document.getElementById('rNotes').value,
+    logoData: rLogoData,
+    taxPercent: Number(document.getElementById('rTax').value) || 0,
+    discountPercent: Number(document.getElementById('rDiscount').value) || 0,
+    subtotal, taxAmt, discAmt, total,
+    items: [...document.querySelectorAll('#rItemsBody tr')].map(tr => {
+      const inputs = tr.querySelectorAll('input');
+      return { desc: inputs[0]?.value || '', qty: Number(inputs[1]?.value) || 0, rate: Number(inputs[2]?.value) || 0 };
+    }).filter(item => item.desc.trim() || item.rate > 0)
+  };
+  const row = {
+    user_id: user.id, receipt_number: receiptNumber, company, customer,
+    total, currency, receipt_date: receiptDate, payload,
+    updated_at: new Date().toISOString()
+  };
+
+  const button = document.querySelector('#actionBtns button[onclick="saveReceipt()"]');
+  if(button){ button.disabled = true; button.textContent = 'Saving…'; }
+  try {
+    const { data, error } = await sb.from('receipts').upsert(row, { onConflict: 'user_id,receipt_number' }).select('id,receipt_number').single();
+    if(error) throw error;
+
+    // Keep a local compatibility copy, but cloud storage is the authoritative save.
+    const local = JSON.parse(localStorage.getItem('fi_receipts') || '[]');
+    const savedAt = new Date().toISOString();
+    const entry = { id: data.id, user_id: user.id, company, customer, total, currency, number: receiptNumber, date: receiptDate, savedAt, payload };
+    const existingIndex = local.findIndex(item => String(item.number || item.receipt_number || '') === receiptNumber);
+    if(existingIndex >= 0) local[existingIndex] = { ...local[existingIndex], ...entry };
+    else local.push(entry);
+    localStorage.setItem('fi_receipts', JSON.stringify(local));
+    showToast('Receipt saved securely to your account ☁️', 'success', 4500);
+  } catch(error) {
+    console.error('FineInvoice receipt cloud save failed:', error);
+    showToast('Receipt was not synced: ' + (error?.message || 'Cloud save failed') + '. Your form is still here; do not close it yet.', 'error', 7000);
+  } finally {
+    if(button){ button.disabled = false; button.textContent = '💾 Save'; }
+  }
 }
 
 function printReceipt(){
