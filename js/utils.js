@@ -124,7 +124,7 @@ function startEntitlementSync(){if(window.__fineInvoiceEntitlementSyncStarted)re
 function stopEntitlementSync(){if(fineInvoiceEntitlementTimer)clearInterval(fineInvoiceEntitlementTimer);fineInvoiceEntitlementTimer=null;window.__fineInvoiceEntitlementSyncStarted=false;}
 function requireAuth(redirect='signin.html'){const user=getCurrentUser();if(!user)window.location.href=redirect;return user;}
 function requirePlan(user,minPlan,featureName){const order={free:0,single:1,lifetime:2};const userLevel=order[String(user?.plan||'free').toLowerCase()]??0;const required=order[minPlan]??1;if(userLevel>=required)return true;const label=minPlan==='lifetime'?'Lifetime ($25)':'Single ($2) or higher';showToast(`${featureName} requires ${label} plan.`,'error',5000);return false;}
-const EMAILJS_SERVICE='service_xkh5qjd';const EMAILJS_TEMPLATE='template_7872dpg';const EMAILJS_PUBLIC='ypfhAplPP-LZxq9zy';
+const EMAILJS_SERVICE='service_bc69adp';const EMAILJS_TEMPLATE='template_7872dpg';const EMAILJS_PUBLIC='ypfhAplPP-LZxq9zy';
 async function sendInvoiceByEmail(toEmail,toName,fromName,invNumber,pdfBase64){if(!window.emailjs)return{error:'EmailJS not loaded'};try{return{data:await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:toEmail,to_name:toName,from_name:fromName,inv_number:invNumber,pdf_base64:pdfBase64||''},{publicKey:EMAILJS_PUBLIC})}}catch(error){return{error}}}
 let fineInvoiceLogoutInProgress = false;
 async function logout(){
