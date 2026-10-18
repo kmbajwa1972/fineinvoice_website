@@ -64,6 +64,14 @@ Deno.serve(async (req) => {
       address: String(p.custAddress ?? p.customerAddress ?? ""), created_at: inv.created_at ?? "",
       account_email: inv.account_email ?? "", account_name: inv.account_name ?? "", source: "invoice", invoices: [],
     };
+    // Fill gaps from the saved invoice only; preserve any existing saved customer-profile fields.
+    const invoiceCompany = String(inv.company ?? p.company ?? "").trim();
+    const invoicePhone = String(inv.cust_phone ?? p.custPhone ?? p.customerPhone ?? "").trim();
+    const invoiceAddress = String(inv.cust_address ?? p.custAddress ?? p.customerAddress ?? "").trim();
+    if (!entry.company && invoiceCompany) entry.company = invoiceCompany;
+    if (!entry.email && customerEmail) entry.email = customerEmail;
+    if (!entry.phone && invoicePhone) entry.phone = invoicePhone;
+    if (!entry.address && invoiceAddress) entry.address = invoiceAddress;
     (entry.invoices as unknown[]).push({
       id: inv.id, inv_number: inv.inv_number, inv_date: inv.inv_date, created_at: inv.created_at,
       currency: inv.currency, total: inv.total, status: inv.status, notes: inv.notes,
