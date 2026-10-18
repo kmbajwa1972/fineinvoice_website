@@ -20,7 +20,7 @@
     .callout{border-left:4px solid #4f6ef7;padding:12px 16px;background:#f8faff;margin:20px 0}
     @media(max-width:650px){.article{padding:25px}.example{padding:14px}}
   </style>
-</head>
+<link rel="stylesheet" href="/css/guide.css"></head>
 <body>
   <div class="wrap">
     <a class="back" href="/guides.html">← All Invoice Guides</a>
@@ -62,7 +62,11 @@
       <p>Before sending the invoice, agree on how fees will be handled and check whether your proposed wording is permitted in the countries involved. If the client is expected to cover bank charges, say so in the agreement and payment instructions. If you absorb the charges, account for them when setting your price. Never add a surprise fee after the client has accepted the price.</p>
       <p>Offer payment methods that are actually available to both parties. Confirm the recipient country, supported currencies, settlement timing, and withdrawal options with the provider before relying on it for a project.</p>
 
-      <h2>5. Check tax and registration rules before issuing the invoice</h2>
+      <h2>Worked example and currency calculator</h2>
+<p>You price a project at 1,000 in your currency and your client wants the invoice in euros. If 1 unit of your currency is worth 0.92 euros, the invoice is EUR 920.00. If the payment route takes 2.5% in fees, you receive about 897.00 euros, which converts back to roughly 975.00 in your currency. The rate here is only an illustration, not a quote.</p>
+<div class="calc"><label for="a">Your price (in your currency)</label><input id="a" type="number" value="1000" min="0" step="any"><label for="r">Rate: 1 unit of your currency = how many units of the invoice currency?</label><input id="r" type="number" value="0.92" min="0" step="any"><label for="f">Total payment fees (%)</label><input id="f" type="number" value="2.5" min="0" step="any"><div class="out" id="o1"></div><div class="out" id="o2"></div></div>
+<script>function c(){var a=+document.getElementById('a').value,r=+document.getElementById('r').value,f=+document.getElementById('f').value;if(!(a>=0)||!(r>0)||!(f>=0)){document.getElementById('o1').textContent='Enter valid numbers.';document.getElementById('o2').textContent='';return}var inv=a*r,rec=inv*(1-f/100),back=rec/r;document.getElementById('o1').textContent='Invoice amount: '+inv.toFixed(2)+' (invoice currency)';document.getElementById('o2').textContent='You receive after fees: '+rec.toFixed(2)+', about '+back.toFixed(2)+' in your currency'}['a','r','f'].forEach(function(i){document.getElementById(i).addEventListener('input',c)});c()</script>
+<h2>5. Check tax and registration rules before issuing the invoice</h2>
       <p>Cross-border tax treatment is not determined by the customer's country alone. It can depend on where you are established, whether the customer is a business or an individual, what you sell, where goods are delivered or services are treated as supplied, and whether either party has a relevant tax registration.</p>
       <p>Before issuing the invoice, check whether you need to include a tax registration number, charge tax, apply a reverse-charge or other treatment, show a required statement, or use a prescribed invoice format. Goods shipped across borders may also raise customs, import-tax, and delivery-document questions that do not apply in the same way to remote services.</p>
       <ul>

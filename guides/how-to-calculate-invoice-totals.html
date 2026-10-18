@@ -23,7 +23,7 @@
     .callout{border-left:4px solid #4f6ef7;padding:12px 16px;background:#f8faff;margin:20px 0}
     @media(max-width:650px){.article{padding:25px}.example{padding:14px}.example th,.example td{padding:7px 4px;font-size:.9rem}}
   </style>
-</head>
+<link rel="stylesheet" href="/css/guide.css"></head>
 <body>
   <div class="wrap">
     <a class="back" href="/guides.html">← All Invoice Guides</a>
@@ -95,7 +95,11 @@
       <p>For currencies normally displayed to two decimal places, invoice totals are commonly shown to two decimal places, but the calculation rules can differ. Avoid rounding every intermediate number unless the applicable rules or your system require it. A reliable process is to keep adequate precision during calculation and apply the correct rounding rule at the required stage.</p>
       <div class="callout"><strong>Quick check:</strong> if the displayed line totals add up to a different number from the displayed subtotal, inspect the underlying quantities, rates, discounts, and rounding settings before sending the invoice.</div>
 
-      <h2>6. Common mistakes that change the total</h2>
+      <h2>Try the calculation yourself</h2><p>This calculator uses the order described above: discount first, then tax on the discounted amount, line by line. Amounts keep their exact decimals.</p>
+<div class="calc"><div class="tbl"><table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Disc. %</th><th>Tax %</th><th class="n">Line total</th></tr></thead><tbody id="rows"></tbody></table></div><div class="out" id="sum"></div></div>
+<p>Prefer a spreadsheet? Download the free <a href="/downloads/fineinvoice-invoice-template.xlsx" download>Excel invoice template</a>, which calculates totals the same way, or the <a href="/downloads/fineinvoice-invoice-template.docx" download>Word version</a>. More on the format in our <a href="/guides/free-invoice-templates.html">free invoice templates guide</a>.</p>
+<script>var D=[['Logo design',1,500,0,8],['Hosting setup',2,60,5,0],['Content writing',3,150,10,8],['',0,0,0,0]];var tb=document.getElementById('rows');D.forEach(function(d,i){var tr=document.createElement('tr');tr.innerHTML='<td><input aria-label="Item" value="'+d[0]+'"></td><td><input type="number" step="any" min="0" value="'+d[1]+'" style="width:60px"></td><td><input type="number" step="any" min="0" value="'+d[2]+'" style="width:90px"></td><td><input type="number" step="any" min="0" value="'+d[3]+'" style="width:60px"></td><td><input type="number" step="any" min="0" value="'+d[4]+'" style="width:60px"></td><td class="n"></td>';tb.appendChild(tr)});function r2(x){return Math.round((x+Number.EPSILON)*100)/100}function calc(){var S=0,Dc=0,T=0,L=0;[].forEach.call(tb.rows,function(tr){var v=[].map.call(tr.querySelectorAll('input'),function(i){return +i.value||0});var g=v[1]*v[2]||0;var net=g*(1-v[3]/100);var line=net*(1+v[4]/100);tr.cells[5].textContent=line.toFixed(2);S+=g;Dc+=g-net;L+=line});T=L-(S-Dc);document.getElementById('sum').textContent='Subtotal '+S.toFixed(2)+' − discount '+Dc.toFixed(2)+' + tax '+T.toFixed(2)+' = total due '+L.toFixed(2)}tb.addEventListener('input',calc);calc()</script>
+<h2>6. Common mistakes that change the total</h2>
       <ul>
         <li><strong>Wrong quantity:</strong> entering 12 hours instead of 2 hours multiplies the charge incorrectly.</li>
         <li><strong>Rate mismatch:</strong> using an old rate rather than the price agreed for this job.</li>
