@@ -124,7 +124,8 @@
                 <th>Company</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Actions</th>
+                <th id="accountHeader" style="display:none">Customer Account</th>
+                <th id="actionsHeader">Actions</th>
               </tr>
             </thead>
             <tbody id="customerTable"></tbody>
@@ -149,6 +150,9 @@ renderUserChip('userChip');
 setActiveNav();
 
 let editId = null;
+const signedInUser = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+const isAdminCustomerView = Boolean(signedInUser && signedInUser.isAdmin);
+let adminCustomerRecords = [];
 const colors = ['#6C3FF5','#FF5C5C','#00C48C','#3AB3FF','#FFB547','#EC4899'];
 function getColor(str){ let h=0; for(let c of (str||'')) h=(h<<5)-h+c.charCodeAt(0); return colors[Math.abs(h)%colors.length]; }
 
@@ -220,6 +224,10 @@ function deleteCustomer(id){
 }
 
 function renderCustomers(){
+  if (isAdminCustomerView) {
+    renderAdminCustomerRows();
+    return;
+  }
   const q = (document.getElementById('search').value || '').toLowerCase();
   const all = getCustomers();
   const filtered = all.filter(c =>
@@ -326,6 +334,63 @@ async function syncLocalCustomersToCloud() {
   }
 }
 
+function renderAdminCustomerRows() {
+  const q = (document.getElementById('search').value || '').trim().toLowerCase();
+  const rows = adminCustomerRecords.filter(c =>
+    [c.name, c.company, c.email, c.phone, c.address, c.account_email]
+      .some(v => String(v || '').toLowerCase().includes(q))
+  );
+  document.getElementById('custCountLabel').textContent =
+    `${adminCustomerRecords.length} customer profiles across all accounts`;
+  const tbody = document.getElementById('customerTable');
+  const empty = document.getElementById('emptyState');
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    empty.querySelector('h3').textContent = adminCustomerRecords.length ? 'No matching customers' : 'No saved customer profiles found';
+    empty.querySelector('p').textContent = adminCustomerRecords.length ? 'Try another search term.' : 'Customer profiles appear here after customer accounts save them to cloud storage.';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(c => `<tr class="customer-row">
+    <td><div class="avatar-cell" style="background:${getColor(c.name)}">${escapeHtml(String(c.name || '?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2))}</div></td>
+    <td><strong>${escapeHtml(c.name || '—')}</strong></td>
+    <td>${escapeHtml(c.company || '—')}</td>
+    <td style="color:var(--muted);font-size:13px">${escapeHtml(c.email || '—')}</td>
+    <td style="color:var(--muted);font-size:13px">${escapeHtml(c.phone || '—')}</td>
+    <td style="font-size:13px">${escapeHtml(c.account_email || 'Unknown account')}</td>
+    <td>—</td>
+  </tr>`).join('');
+}
+
+async function loadAdminCustomerDirectory() {
+  const status = document.getElementById('customerSyncStatus');
+  const client = typeof getSupabase === 'function' ? getSupabase() : null;
+  if (!client) {
+    if (status) status.textContent = 'Admin customer directory unavailable: Supabase client could not be initialized.';
+    return;
+  }
+  if (status) status.textContent = 'Loading saved customer profiles across accounts…';
+  try {
+    const { data, error } = await client.functions.invoke('admin-report-data', { body: {} });
+    if (error || data?.error || !Array.isArray(data?.data?.customers)) {
+      throw new Error(data?.error || error?.message || 'Admin customer directory request failed.');
+    }
+    // Show saved cloud profiles only; invoice-only customer names are not customer profiles.
+    adminCustomerRecords = data.data.customers.filter(c => c && c.source === 'customer_record');
+    document.getElementById('formCard').style.display = 'none';
+    document.getElementById('syncCustomersBtn').style.display = 'none';
+    document.getElementById('accountHeader').style.display = '';
+    document.getElementById('actionsHeader').style.display = 'none';
+    if (status) status.textContent = 'Administrator view: saved customer profiles from all accounts. Customer data is read-only here.';
+    renderAdminCustomerRows();
+  } catch (e) {
+    console.error('Admin customer directory load failed:', e);
+    if (status) status.textContent = 'Could not load the all-account customer directory. Your customer accounts and saved records were not changed.';
+    document.getElementById('customerTable').innerHTML = '<tr><td colspan="7">Could not load customer directory. Refresh and try again.</td></tr>';
+  }
+}
+
 async function loadCloudCustomers() {
   const status = document.getElementById('customerSyncStatus');
   const client = typeof getSupabase === 'function' ? getSupabase() : null;
@@ -400,7 +465,15 @@ async function loadCloudCustomers() {
   }
 }
 
-loadCloudCustomers();
+if (isAdminCustomerView) {
+  document.getElementById('formCard').style.display = 'none';
+  document.getElementById('syncCustomersBtn').style.display = 'none';
+  document.getElementById('accountHeader').style.display = '';
+  document.getElementById('actionsHeader').style.display = 'none';
+  loadAdminCustomerDirectory();
+} else {
+  loadCloudCustomers();
+}
 
 function toggleSidebar(){
   document.querySelector('.sidebar').classList.toggle('open');
