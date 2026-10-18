@@ -58,12 +58,26 @@ Deno.serve(async (req) => {
     if (!name) continue;
     const customerEmail = String(inv.cust_email ?? p.custEmail ?? p.customerEmail ?? "").trim();
     const key = [inv.user_id ?? "", customerEmail.toLowerCase(), name.toLowerCase()].join("|");
-    const entry = grouped.get(key) ?? {
-      id: "invoice-customer:" + key, user_id: inv.user_id, name, company: "",
-      email: customerEmail, phone: String(p.custPhone ?? p.customerPhone ?? ""),
-      address: String(p.custAddress ?? p.customerAddress ?? ""), created_at: inv.created_at ?? "",
-      account_email: inv.account_email ?? "", account_name: inv.account_name ?? "", source: "invoice", invoices: [],
-    };
+    // Invoices often have no customer email even when a saved profile does.
+    // In that case, safely match by the same account and exact normalized customer name.
+    // Never match across accounts, and only use the fallback when it is unambiguous.
+    let entry = grouped.get(key);
+    if (!entry && !customerEmail) {
+      const sameAccountAndName = [...grouped.entries()].filter(([groupKey, candidate]) =>
+        String(candidate.user_id ?? "") === String(inv.user_id ?? "") &&
+        String(candidate.name ?? "").trim().toLowerCase() === name.toLowerCase()
+      );
+      if (sameAccountAndName.length === 1) entry = sameAccountAndName[0][1];
+    }
+    if (!entry) {
+      entry = {
+        id: "invoice-customer:" + key, user_id: inv.user_id, name, company: "",
+        email: customerEmail, phone: String(p.custPhone ?? p.customerPhone ?? ""),
+        address: String(p.custAddress ?? p.customerAddress ?? ""), created_at: inv.created_at ?? "",
+        account_email: inv.account_email ?? "", account_name: inv.account_name ?? "", source: "invoice", invoices: [],
+      };
+      grouped.set(key, entry);
+    }
     // Fill gaps from the saved invoice only; preserve any existing saved customer-profile fields.
     const invoiceCompany = String(inv.company ?? p.company ?? "").trim();
     const invoicePhone = String(inv.cust_phone ?? p.custPhone ?? p.customerPhone ?? "").trim();
