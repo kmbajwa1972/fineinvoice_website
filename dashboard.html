@@ -379,7 +379,8 @@ if(user){
       for (const row of cloudRows) {
         const idx = merged.findIndex(local =>
           String(local.id) === String(row.id) ||
-          (row.id && String(local.cloudId || '') === String(row.id))
+          (row.id && String(local.cloudId || '') === String(row.id)) ||
+          (row.payload?.legacy_id != null && String(row.payload.legacy_id) === String(row.id))
         );
         if (idx >= 0) merged[idx] = {...merged[idx], ...row};
         else merged.push(row);
