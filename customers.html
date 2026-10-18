@@ -326,7 +326,81 @@ async function syncLocalCustomersToCloud() {
   }
 }
 
-renderCustomers();
+async function loadCloudCustomers() {
+  const status = document.getElementById('customerSyncStatus');
+  const client = typeof getSupabase === 'function' ? getSupabase() : null;
+  if (!client) {
+    renderCustomers();
+    if (status) status.textContent = 'Showing customers saved in this browser. Cloud storage is unavailable right now.';
+    return;
+  }
+
+  try {
+    const auth = await client.auth.getUser();
+    const user = auth.data?.user;
+    if (auth.error || !user?.id) {
+      renderCustomers();
+      if (status) status.textContent = 'Showing this account’s local customer records. Sign in again to load cloud records.';
+      return;
+    }
+
+    const result = await client.from('customers')
+      .select('id,name,company,email,phone,address,payload,created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (result.error) throw result.error;
+
+    const local = getCustomers();
+    const merged = local.map(c => ({ ...c }));
+    let nextId = Date.now();
+
+    for (const row of (result.data || [])) {
+      const email = String(row.email || '').trim().toLowerCase();
+      const name = String(row.name || '').trim().toLowerCase();
+      const idx = merged.findIndex(c =>
+        (c.cloudId && String(c.cloudId) === String(row.id)) ||
+        (email && String(c.email || '').trim().toLowerCase() === email) ||
+        (!email && name && String(c.name || '').trim().toLowerCase() === name)
+      );
+
+      if (idx >= 0) {
+        merged[idx] = {
+          ...merged[idx],
+          cloudId: row.id,
+          name: String(row.name || merged[idx].name || ''),
+          company: String(row.company || merged[idx].company || ''),
+          email: String(row.email || merged[idx].email || ''),
+          phone: String(row.phone || merged[idx].phone || ''),
+          address: String(row.address || merged[idx].address || ''),
+          createdAt: merged[idx].createdAt || row.created_at || null
+        };
+      } else {
+        merged.push({
+          id: nextId++,
+          cloudId: row.id,
+          name: String(row.name || ''),
+          company: String(row.company || ''),
+          email: String(row.email || ''),
+          phone: String(row.phone || ''),
+          address: String(row.address || ''),
+          createdAt: row.created_at || null
+        });
+      }
+    }
+
+    // Merge cloud records into this account's local cache; never clear unrelated local records.
+    saveCustomers(merged);
+    renderCustomers();
+    if (status) status.textContent = `Loaded ${result.data?.length || 0} cloud customer(s). Local customer records are preserved.`;
+  } catch (e) {
+    console.error('Could not load cloud customers', e);
+    renderCustomers();
+    if (status) status.textContent = 'Could not load cloud customers. Your local customer records are still available.';
+  }
+}
+
+loadCloudCustomers();
 
 function toggleSidebar(){
   document.querySelector('.sidebar').classList.toggle('open');
