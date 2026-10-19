@@ -12,10 +12,29 @@
 
   async function user() {
     const client = sb();
-    if (!client) return null;
-    const { data } = await client.auth.getUser();
-    const authUser = data?.user;
-    if (!authUser) return null;
+    if (!client) {
+      console.error('[FineInvoice] Supabase client is unavailable for PDF authorization.');
+      return null;
+    }
+    let authUser = null;
+    try {
+      // Prefer the active session first. getUser() performs a network verification and can
+      // return no user during a transient auth/network error even when a valid session exists.
+      const sessionResult = await client.auth.getSession();
+      authUser = sessionResult.data?.session?.user || null;
+      if (!authUser) {
+        const userResult = await client.auth.getUser();
+        authUser = userResult.data?.user || null;
+        if (userResult.error) console.warn('[FineInvoice] Supabase getUser verification failed:', userResult.error.message);
+      }
+    } catch (error) {
+      console.warn('[FineInvoice] Could not read Supabase auth session:', error);
+      return null;
+    }
+    if (!authUser) {
+      console.warn('[FineInvoice] PDF authorization blocked: no active Supabase session.');
+      return null;
+    }
     const meta = authUser.user_metadata || {};
     const local = currentLocalUser();
     const free = Math.max(0, Number(meta[CREDIT_KEY] ?? local[CREDIT_KEY] ?? 3) || 0);
