@@ -190,10 +190,13 @@ function toggleSidebar(){document.querySelector('.sidebar').classList.toggle('op
     if(typeof livePreview==='function') livePreview();
     const banner=document.createElement('div');
     banner.style.cssText='margin:16px 0;padding:14px 18px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:700';
-    banner.textContent='Project estimate imported. Review the details, then click Save Invoice to complete the conversion.';
+    banner.textContent='Project estimate imported. FineInvoice is saving the converted invoice; please review the invoice details below.';
     const target=document.querySelector('.main-content');
     if(target) target.prepend(banner);
-    sessionStorage.removeItem('fi_project_estimate_to_convert');
+    if(typeof saveInvoice==='function') saveInvoice();
+    const saved=typeof getInvoices==='function' && getInvoices().some(inv=>String(inv.id)===String(currentDraftId));
+    if(saved){banner.textContent='Estimate converted and saved as a FineInvoice invoice. Please review the invoice details and download the PDF when ready.';sessionStorage.removeItem('fi_project_estimate_to_convert');}
+    else {banner.textContent='Estimate imported, but automatic saving could not be verified. Review the invoice details and use Save Invoice manually.';}
   } catch(error) {
     console.error('Project estimate import failed',error);
     if(typeof showToast==='function') showToast('Could not import the estimate. Your original quotation is still available in the previous browser tab.','error');
