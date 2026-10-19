@@ -152,5 +152,56 @@ if(params.get('invoice')){if(!loadInvoiceById(params.get('invoice'))){invoiceLoa
 if(params.get('template')){try{const t=JSON.parse(sessionStorage.getItem('fi_template')||'null');if(t){sessionStorage.removeItem('fi_template');document.getElementById('itemsBody').innerHTML='';(t.items||[]).forEach(addItem);if(t.notes)document.getElementById('notes').value=t.notes;if(t.color)themeColor=t.color;livePreview()}}catch(e){console.error(e)}}
 function toggleSidebar(){document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('open')}
 </script>
+
+<script>
+/* FineInvoice Project Estimator hand-off. Estimate data is explicitly submitted by the visitor. */
+(async function importProjectEstimate(){
+  const params=new URLSearchParams(location.search);
+  if(params.get('convertEstimate')!=='1') return;
+  let estimate;
+  try { estimate=JSON.parse(sessionStorage.getItem('fi_project_estimate_to_convert')||'null'); } catch(e) {}
+  if(!estimate || estimate.source!=='fineinvoice-project-estimator') {
+    if(typeof showToast==='function') showToast('Your estimate was not found. Please return to the Project Cost Estimator and try again.','error');
+    return;
+  }
+  try {
+    const u=await getInvoiceAccessUser();
+    const eligible=String(u?.plan||'free').toLowerCase()==='lifetime' || String(u?.plan||'free').toLowerCase()==='single';
+    if(!u?.id || !eligible) {
+      sessionStorage.setItem('fi_project_estimate_to_convert',JSON.stringify(estimate));
+      alert('Please sign in with a FineInvoice paid plan (Single or Lifetime) to convert this estimate into an invoice. Your estimate is kept in this browser session.');
+      location.replace('payment.html');
+      return;
+    }
+    const put=(id,value)=>{const el=document.getElementById(id);if(el)el.value=value??'';};
+    put('company',estimate.business);put('customer',estimate.customer);put('currency',estimate.currency||'USD');
+    put('invDate',new Date().toISOString().slice(0,10));
+    const due=new Date();due.setDate(due.getDate()+14);put('dueDate',due.toISOString().slice(0,10));
+    put('notes',[estimate.project?('Project: '+estimate.project):'',estimate.terms||'', 'Converted from FineInvoice Project Cost Estimator quotation.'].filter(Boolean).join('\n\n'));
+    put('tax',Number(estimate.taxPercent)||0);put('discount',Number(estimate.discountPercent)||0);
+    const body=document.getElementById('itemsBody');
+    if(body && typeof addItem==='function') {
+      body.innerHTML='';
+      (estimate.items||[]).forEach(item=>addItem({desc:item.desc,qty:item.qty,rate:item.rate,unit:'',itemTax:0,itemDisc:0}));
+      if(Number(estimate.labor)>0) addItem({desc:'Additional labor',qty:1,rate:Number(estimate.labor),unit:'',itemTax:0,itemDisc:0});
+      if(Number(estimate.overhead)>0) addItem({desc:'Overhead / transport',qty:1,rate:Number(estimate.overhead),unit:'',itemTax:0,itemDisc:0});
+      if(Number(estimate.profitMarkup)>0) addItem({desc:'Project profit markup ('+Number(estimate.profitMarkup)+'%)',qty:1,rate:Number(estimate.totals?.markup)||0,unit:'',itemTax:0,itemDisc:0});
+    }
+    if(typeof livePreview==='function') livePreview();
+    const banner=document.createElement('div');
+    banner.style.cssText='margin:16px 0;padding:14px 18px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:700';
+    banner.textContent='Project estimate imported. FineInvoice is saving the converted invoice; please review the invoice details below.';
+    const target=document.querySelector('.main-content');
+    if(target) target.prepend(banner);
+    if(typeof saveInvoice==='function') saveInvoice();
+    const saved=typeof getInvoices==='function' && getInvoices().some(inv=>String(inv.id)===String(currentDraftId));
+    if(saved){banner.textContent='Estimate converted and saved as a FineInvoice invoice. Please review the invoice details and download the PDF when ready.';sessionStorage.removeItem('fi_project_estimate_to_convert');}
+    else {banner.textContent='Estimate imported, but automatic saving could not be verified. Review the invoice details and use Save Invoice manually.';}
+  } catch(error) {
+    console.error('Project estimate import failed',error);
+    if(typeof showToast==='function') showToast('Could not import the estimate. Your original quotation is still available in the previous browser tab.','error');
+  }
+})();
+</script>
 </body>
 </html>

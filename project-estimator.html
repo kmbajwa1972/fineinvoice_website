@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Estimate project costs for materials, labor, overhead and profit, then generate a professional quotation for free with FineInvoice.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://fineinvoice.com/project-estimator.html">
+<link rel="icon" href="/logo.jpg">
+<title>Free Project Cost Estimator & Quotation Maker | FineInvoice</title>
+<link rel="stylesheet" href="/css/theme.css">
+<style>
+:root{--pe:#7c3aed;--line:#e6eaf1;--ink:#172033;--muted2:#64748b}
+body{background:#f6f8fc;color:var(--ink);font-family:Inter,system-ui,sans-serif}
+.site-nav{background:#fff;border-bottom:1px solid var(--line);padding:14px max(20px,calc((100% - 1180px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px}
+.site-brand{font-weight:850;font-size:19px;color:#172033;text-decoration:none;display:flex;align-items:center;gap:9px}.site-brand img{width:32px;height:32px;object-fit:cover;border-radius:9px}
+.nav-link{color:var(--pe);font-weight:700;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:34px 20px 60px}
+.hero{text-align:center;margin:10px auto 28px;max-width:820px}.eyebrow{color:var(--pe);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.hero h1{font-size:clamp(30px,4vw,46px);line-height:1.1;letter-spacing:-1.4px;margin:10px 0 12px}.hero p{color:#64748b;font-size:16px;line-height:1.65;margin:0}
+.layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(330px,.85fr);gap:22px;align-items:start}.panel{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 28px #1720330a;overflow:hidden}.panel-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.panel-head h2{font-size:16px;margin:0}.panel-body{padding:20px 22px}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px;min-width:0}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:700;color:#475569}.field input,.field select,.field textarea{width:100%;min-width:0;border:1px solid #dce2ec;border-radius:9px;padding:11px 12px;font:inherit;font-size:13px;background:#fff;color:#172033}.field textarea{min-height:76px;resize:vertical}.section-label{font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin:22px 0 11px}.items-wrap{overflow:auto;border:1px solid var(--line);border-radius:11px}.items{width:100%;border-collapse:collapse;min-width:520px}.items th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;background:#f8fafc;text-align:left;padding:10px 8px}.items td{padding:7px;border-top:1px solid var(--line)}.items input{width:100%;min-width:0;padding:9px 8px;border:1px solid #dce2ec;border-radius:7px;font:inherit;font-size:12px}.items .qty{width:70px}.items .rate{width:105px}.items .amount{white-space:nowrap;font-size:12px;font-weight:700;text-align:right}.remove{border:0;background:#fff0f0;color:#b91c1c;border-radius:7px;padding:7px 9px;cursor:pointer}.btn{border:0;border-radius:10px;padding:12px 16px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}.btn-primary{background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;box-shadow:0 5px 14px #7c3aed2b}.btn-secondary{background:#f3f0ff;color:#6d28d9}.btn-plain{background:#fff;border:1px solid #dce2ec;color:#334155}.btn-block{width:100%}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:15px}.hint{font-size:11px;color:#64748b;line-height:1.55;margin-top:10px}.summary{display:flex;flex-direction:column;gap:10px}.sum-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#475569}.sum-row strong{color:#172033}.sum-total{border-top:1px solid var(--line);padding-top:13px;margin-top:3px;font-size:15px;font-weight:800}.sum-total strong{font-size:23px;color:var(--pe)}.metric{background:#f7f5ff;border:1px solid #e9ddff;padding:14px;border-radius:12px;margin-bottom:16px}.metric small{display:block;color:#6d28d9;font-size:11px;font-weight:800}.metric strong{display:block;color:#4c1d95;font-size:26px;margin-top:3px}.metric span{display:block;color:#7c6b9e;font-size:11px}.quote-preview{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 8px 28px #1720330a}.quote-top{display:flex;justify-content:space-between;gap:12px;border-bottom:2px solid #7c3aed;padding-bottom:15px;margin-bottom:15px}.quote-top h2{margin:0;font-size:21px}.quote-meta{text-align:right;font-size:11px;color:#64748b}.quote-preview table{width:100%;border-collapse:collapse;font-size:12px}.quote-preview th,.quote-preview td{text-align:left;padding:9px 5px;border-bottom:1px solid #edf0f5}.quote-preview th:last-child,.quote-preview td:last-child{text-align:right}.quote-bottom{display:flex;justify-content:flex-end;margin-top:14px}.quote-bottom div{width:250px;max-width:100%}.quote-bottom p{display:flex;justify-content:space-between;margin:7px 0;font-size:12px}.quote-bottom .grand{border-top:2px solid #7c3aed;padding-top:9px;font-size:15px;font-weight:850}.privacy{background:#effaf5;border:1px solid #c6f1db;color:#166534;padding:12px 14px;border-radius:10px;font-size:12px;line-height:1.5;margin-top:16px}
+footer{text-align:center;padding:22px;color:#94a3b8;font-size:11px}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.field-grid{grid-template-columns:1fr 1fr}.wrap{padding-top:22px}.quote-preview{padding:15px}}
+@media(max-width:520px){.field-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.panel-head,.panel-body{padding:16px}.site-nav{padding:12px 16px}.actions .btn{flex:1}.quote-top{flex-direction:column}.quote-meta{text-align:left}}
+@media print{body{background:#fff!important}.site-nav,.hero,.layout,.no-print,footer{display:none!important}.wrap{max-width:none;padding:0}.quote-preview{display:block!important;border:0;box-shadow:none;margin:0;padding:10mm;border-radius:0}.quote-preview table{font-size:11pt}.quote-preview th,.quote-preview td{padding:8px 4px}}
+</style>
+</head>
+<body>
+<nav class="site-nav"><a class="site-brand" href="/"><img src="/logo.jpg" alt="">FineInvoice</a><a class="nav-link" href="/signin.html">Sign in</a></nav>
+<main class="wrap">
+<section class="hero"><div class="eyebrow">Free business tool</div><h1>Project Cost Estimator & Quotation Maker</h1><p>Work out your project price using materials, labor, overhead and profit. Then print or save a professional quotation—free, without creating an account.</p></section>
+<div class="layout">
+<section class="panel">
+<div class="panel-head"><h2>1. Project and customer details</h2><span style="font-size:11px;color:#64748b">Free to use</span></div>
+<div class="panel-body">
+<div class="field-grid">
+<div class="field"><label for="business">Your business / name</label><input id="business" placeholder="Your business name"></div>
+<div class="field"><label for="customer">Customer name</label><input id="customer" placeholder="Customer or company"></div>
+<div class="field full"><label for="project">Project title</label><input id="project" placeholder="e.g. Office renovation"></div>
+<div class="field"><label for="currency">Currency</label><select id="currency"><option value="USD">USD — US Dollar</option><option value="PKR">PKR — Pakistani Rupee</option><option value="EUR">EUR — Euro</option><option value="AED">AED — UAE Dirham</option><option value="GBP">GBP — British Pound</option></select></div>
+<div class="field"><label for="quoteDate">Quotation date</label><input id="quoteDate" type="date"></div>
+</div>
+<div class="section-label">2. Project items</div>
+<div class="items-wrap"><table class="items"><thead><tr><th>Description</th><th>Qty</th><th>Unit cost</th><th>Line total</th><th></th></tr></thead><tbody id="itemsBody"></tbody></table></div>
+<div class="actions"><button class="btn btn-secondary" id="addItem" type="button">＋ Add item</button></div>
+<div class="section-label">3. Cost and pricing</div>
+<div class="field-grid">
+<div class="field"><label for="labor">Additional labor cost</label><input id="labor" type="number" min="0" step="0.01" value="0"></div>
+<div class="field"><label for="overhead">Overhead / transport</label><input id="overhead" type="number" min="0" step="0.01" value="0"></div>
+<div class="field"><label for="profit">Profit markup (%)</label><input id="profit" type="number" min="0" max="1000" step="0.1" value="20"></div>
+<div class="field"><label for="discount">Discount (%)</label><input id="discount" type="number" min="0" max="100" step="0.1" value="0"></div>
+<div class="field"><label for="tax">Tax (%)</label><input id="tax" type="number" min="0" max="100" step="0.1" value="0"></div>
+<div class="field full"><label for="terms">Quotation terms / notes</label><textarea id="terms" placeholder="Validity, payment milestones, exclusions, or other notes"></textarea></div>
+</div>
+<div class="actions no-print"><button class="btn btn-primary" id="printQuote" type="button">Print / Save Quotation PDF</button><button class="btn btn-plain" id="reset" type="button">Clear form</button></div>
+<p class="hint">The estimate is a planning aid, not a guaranteed final cost. Check local prices, tax rules, quantities and project conditions before sending the quotation.</p>
+</div></section>
+<aside>
+<section class="panel"><div class="panel-head"><h2>Estimated project total</h2></div><div class="panel-body">
+<div class="metric"><small>ESTIMATED CUSTOMER PRICE</small><strong id="grandMetric">$0.00</strong><span>Includes markup, discount and tax</span></div>
+<div class="summary">
+<div class="sum-row"><span>Materials / item costs</span><strong id="materialsSum">$0.00</strong></div>
+<div class="sum-row"><span>Additional labor</span><strong id="laborSum">$0.00</strong></div>
+<div class="sum-row"><span>Overhead / transport</span><strong id="overheadSum">$0.00</strong></div>
+<div class="sum-row"><span>Estimated base cost</span><strong id="baseSum">$0.00</strong></div>
+<div class="sum-row"><span>Profit markup</span><strong id="profitSum">$0.00</strong></div>
+<div class="sum-row"><span>Discount</span><strong id="discountSum">−$0.00</strong></div>
+<div class="sum-row"><span>Tax</span><strong id="taxSum">$0.00</strong></div>
+<div class="sum-row sum-total"><span>Quotation total</span><strong id="totalSum">$0.00</strong></div>
+</div>
+<div class="actions no-print"><button class="btn btn-primary btn-block" id="convert" type="button">Convert estimate to FineInvoice invoice →</button></div>
+<p class="hint">Creating and printing a quotation is free. Converting it into a saved FineInvoice invoice requires signing in and an eligible paid plan.</p>
+<div class="privacy">🔒 Your draft stays in this browser until you choose to continue to FineInvoice. Do not use this browser on a shared computer for confidential customer information.</div>
+</div></section>
+</aside>
+</div>
+<section class="quote-preview" id="quotePreview" aria-label="Quotation preview">
+<div class="quote-top"><div><h2>QUOTATION</h2><div id="qBusiness" style="font-size:13px;font-weight:700;margin-top:6px">Your business</div><div id="qProject" style="font-size:12px;color:#64748b;margin-top:3px">Project estimate</div></div><div class="quote-meta"><div id="qDate"></div><div id="qCustomer" style="margin-top:6px;font-weight:700;color:#172033">Prepared for customer</div></div></div>
+<table><thead><tr><th>Description</th><th>Qty</th><th>Unit cost</th><th>Amount</th></tr></thead><tbody id="qItems"></tbody></table>
+<div class="quote-bottom"><div id="qTotals"></div></div><div id="qTerms" style="white-space:pre-wrap;font-size:11px;color:#64748b;margin-top:16px"></div>
+<div style="font-size:10px;color:#94a3b8;border-top:1px solid #edf0f5;padding-top:10px;margin-top:20px">Prepared with FineInvoice · fineinvoice.com</div>
+</section>
+</main>
+<footer>FineInvoice · Project Cost Estimator · Free to use</footer>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const fmtDate=d=>{const x=new Date(d);return Number.isNaN(x.getTime())?'':x.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});};
+const money=n=>{const c=$('currency').value;try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c,maximumFractionDigits:2}).format(Number(n)||0)}catch{return c+' '+(Number(n)||0).toFixed(2)}};
+const num=id=>Math.max(0,Number($(id).value)||0);
+function addItem(desc='',qty=1,rate=0){const tr=document.createElement('tr');tr.innerHTML='<td><input class="desc" maxlength="160" placeholder="Materials, service or work" aria-label="Item description"></td><td><input class="qty" type="number" min="0" step="0.01" value="1" aria-label="Quantity"></td><td><input class="rate" type="number" min="0" step="0.01" value="0" aria-label="Unit cost"></td><td class="amount">—</td><td><button class="remove" type="button" aria-label="Remove item">×</button></td>';tr.querySelector('.desc').value=desc;tr.querySelector('.qty').value=qty;tr.querySelector('.rate').value=rate;tr.querySelectorAll('input').forEach(el=>el.addEventListener('input',update));tr.querySelector('.remove').addEventListener('click',()=>{if($('itemsBody').children.length>1)tr.remove();else{tr.querySelector('.desc').value='';tr.querySelector('.qty').value=1;tr.querySelector('.rate').value=0;}update();});$('itemsBody').appendChild(tr);update();}
+function collect(){return [...$('itemsBody').querySelectorAll('tr')].map(tr=>({desc:tr.querySelector('.desc').value.trim(),qty:Math.max(0,Number(tr.querySelector('.qty').value)||0),rate:Math.max(0,Number(tr.querySelector('.rate').value)||0)})).filter(i=>i.desc||i.rate>0).map(i=>({...i,amount:i.qty*i.rate}));}
+function calculate(){const items=collect(),materials=items.reduce((s,i)=>s+i.amount,0),labor=num('labor'),overhead=num('overhead'),base=materials+labor+overhead,markup=base*num('profit')/100,preDiscount=base+markup,discount=preDiscount*Math.min(100,num('discount'))/100,taxBase=Math.max(0,preDiscount-discount),tax=taxBase*Math.min(100,num('tax'))/100,total=taxBase+tax;return {items,materials,labor,overhead,base,markup,discount,tax,total,currency:$('currency').value};}
+function update(){const t=calculate();$('grandMetric').textContent=money(t.total);$('materialsSum').textContent=money(t.materials);$('laborSum').textContent=money(t.labor);$('overheadSum').textContent=money(t.overhead);$('baseSum').textContent=money(t.base);$('profitSum').textContent=money(t.markup);$('discountSum').textContent='−'+money(t.discount);$('taxSum').textContent=money(t.tax);$('totalSum').textContent=money(t.total);
+$('qBusiness').textContent=$('business').value.trim()||'Your business';$('qProject').textContent=$('project').value.trim()||'Project estimate';$('qDate').textContent='Date: '+fmtDate($('quoteDate').value);$('qCustomer').textContent='Prepared for: '+($('customer').value.trim()||'Customer');$('qItems').innerHTML=t.items.length?t.items.map(i=>'<tr><td>'+esc(i.desc)+'</td><td>'+i.qty+'</td><td>'+money(i.rate)+'</td><td>'+money(i.amount)+'</td></tr>').join(''):'<tr><td colspan="4" style="color:#64748b">Add project items to calculate your quotation.</td></tr>';
+const rows=[['Items',t.materials],['Additional labor',t.labor],['Overhead / transport',t.overhead],['Estimated base cost',t.base],['Profit markup',t.markup],['Discount',-t.discount],['Tax',t.tax]];$('qTotals').innerHTML=rows.map(([label,value])=>'<p><span>'+label+'</span><strong>'+money(value)+'</strong></p>').join('')+'<p class="grand"><span>TOTAL</span><span>'+money(t.total)+'</span></p>';$('qTerms').textContent=$('terms').value.trim()?'Terms / notes: '+$('terms').value.trim():'';}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function draft(){return {schemaVersion:1,source:'fineinvoice-project-estimator',createdAt:new Date().toISOString(),business:$('business').value.trim(),customer:$('customer').value.trim(),project:$('project').value.trim(),currency:$('currency').value,quoteDate:$('quoteDate').value,items:calculate().items,labor:num('labor'),overhead:num('overhead'),profitMarkup:num('profit'),discountPercent:num('discount'),taxPercent:num('tax'),terms:$('terms').value.trim(),totals:calculate()};}
+$('addItem').addEventListener('click',()=>addItem());$('printQuote').addEventListener('click',()=>{update();window.print();});$('reset').addEventListener('click',()=>{if(!confirm('Clear this estimate?'))return;$('business').value='';$('customer').value='';$('project').value='';$('labor').value=0;$('overhead').value=0;$('profit').value=20;$('discount').value=0;$('tax').value=0;$('terms').value='';$('currency').value='USD';$('itemsBody').innerHTML='';addItem();});
+['business','customer','project','currency','quoteDate','labor','overhead','profit','discount','tax','terms'].forEach(id=>$(id).addEventListener('input',update));
+$('convert').addEventListener('click',()=>{const d=draft();if(!d.business||!d.customer){alert('Please enter your business name and customer name before converting the estimate.');return;}if(!d.items.length){alert('Please add at least one project item before converting.');return;}try{sessionStorage.setItem('fi_project_estimate_to_convert',JSON.stringify(d));}catch(e){alert('Your browser could not store this estimate. Please print/save the quotation first and try again.');return;}location.href='/signin.html?next='+encodeURIComponent('/app.html?convertEstimate=1');});
+$('quoteDate').value=new Date().toISOString().slice(0,10);addItem('Materials',1,0);addItem('Project work / service',1,0);
+})();
+</script>
+</body>
+</html>
