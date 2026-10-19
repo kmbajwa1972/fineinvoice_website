@@ -54,11 +54,11 @@ async function doSignup(){
   saveCurrentUser({id:data.user.id,email:data.user.email||email,name,plan:'free',planVerified:false,paymentProvider:null,freePdfCredits:3,paidSingleCredits:0,singleCredits:3,unlockedInvoiceIds:[]});
   if(!data.session){
    showToast('Account created. Please sign in.','success',4000);
-   setTimeout(()=>location.href='signin.html'+(new URLSearchParams(location.search).get('from')==='try'?'?from=try':''),1200);
+   setTimeout(()=>{const p=new URLSearchParams(location.search),q=new URLSearchParams();if(p.get('from')==='try')q.set('from','try');const next=p.get('next');if(next&&next.startsWith('/')&&!next.startsWith('//'))q.set('next',next);location.href='signin.html'+(q.toString()?'?'+q.toString():'')},1200);
    return;
   }
   showToast('Account created! Your 3 free PDF / Print uses are ready.','success');
-  setTimeout(()=>location.href=new URLSearchParams(location.search).get('from')==='try'?'app.html?restoreTrial=1':'dashboard.html',900);
+  setTimeout(()=>{const p=new URLSearchParams(location.search),next=p.get('next');location.href=next&&next.startsWith('/')&&!next.startsWith('//')?next:(p.get('from')==='try'?'app.html?restoreTrial=1':'dashboard.html')},900);
  }catch(e){showToast(e.message||'Unable to create account','error');btn.disabled=false;btn.textContent='Create Free Account →'}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter')doSignup()});
