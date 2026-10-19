@@ -159,6 +159,10 @@ function toggleSidebar(){document.querySelector('.sidebar').classList.toggle('op
 (async function importProjectEstimate(){
   const params=new URLSearchParams(location.search);
   if(params.get('convertEstimate')!=='1') return;
+  // Prevent a second import/payment redirect if this page is refreshed or re-entered.
+  if(window.__fiProjectEstimateImportStarted) return;
+  window.__fiProjectEstimateImportStarted=true;
+  try { history.replaceState({},document.title,location.pathname+location.hash); } catch(e) {}
   let estimate;
   try { estimate=JSON.parse(sessionStorage.getItem('fi_project_estimate_to_convert')||'null'); } catch(e) {}
   if(!estimate || estimate.source!=='fineinvoice-project-estimator') {
