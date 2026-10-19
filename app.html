@@ -186,8 +186,6 @@ function toggleSidebar(){document.querySelector('.sidebar').classList.toggle('op
       if(Number(estimate.labor)>0) addItem({desc:'Additional labor',qty:1,rate:Number(estimate.labor),unit:'',itemTax:0,itemDisc:0});
       if(Number(estimate.overhead)>0) addItem({desc:'Overhead / transport',qty:1,rate:Number(estimate.overhead),unit:'',itemTax:0,itemDisc:0});
       if(Number(estimate.profitMarkup)>0) addItem({desc:'Project profit markup ('+Number(estimate.profitMarkup)+'%)',qty:1,rate:Number(estimate.totals?.markup)||0,unit:'',itemTax:0,itemDisc:0});
-      if(Number(estimate.totals?.discount)>0) addItem({desc:'Estimated discount',qty:1,rate:-Number(estimate.totals.discount),unit:'',itemTax:0,itemDisc:0});
-      if(Number(estimate.totals?.tax)>0) addItem({desc:'Estimated tax',qty:1,rate:Number(estimate.totals.tax),unit:'',itemTax:0,itemDisc:0});
     }
     if(typeof livePreview==='function') livePreview();
     const banner=document.createElement('div');
