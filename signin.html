@@ -13,7 +13,7 @@ window.ensureSupabase=window.ensureSupabase||function(timeoutMs=8000){
 async function signInWithGoogle(){
  const btn=document.getElementById('googleBtn'); btn.disabled=true; btn.textContent='Connecting to Google…';
  try { await ensureSupabase(); const sb=getSupabase(); if(!sb) throw new Error('Authentication service is unavailable.');
- const result=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname.replace(/signin\.html$/,'')+'signin.html?oauth=google'+(new URLSearchParams(location.search).get('from')==='try'?'&from=try':'')}});
+ const result=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname.replace(/signin\.html$/,'')+'signin.html?oauth=google'+(new URLSearchParams(location.search).get('from')==='try'?'&from=try':'')+(new URLSearchParams(location.search).get('next')?'&next='+encodeURIComponent(new URLSearchParams(location.search).get('next')):'')}});
  if(result.error) throw result.error;
  } catch(e) { const n=document.getElementById('notice'); n.className='notice show error'; n.textContent=e.message||'Google sign-in failed.'; btn.disabled=false; btn.textContent='Continue with Google'; }
 }
