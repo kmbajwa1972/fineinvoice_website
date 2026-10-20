@@ -289,13 +289,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="js/utils.js"></script>
 <script>
-// Plan gate — Single+ required
+// Receipts use the shared FineInvoice premium-credit policy.
 const _user = requireAuth();
 renderUserChip('userChip');
-if(_user && !_user.isAdmin && _user.plan !== 'single' && _user.plan !== 'lifetime'){
-  showToast('Receipt Maker requires Single plan or higher. Redirecting to Billing…', 'error', 4000);
-  setTimeout(() => window.location.href = 'payment.html', 2000);
-}
 
 let rLogoData = '';
 
@@ -615,13 +611,65 @@ function restoreSavedReceipt(item){
   showToast('Saved receipt loaded. Save again to update it.', 'success', 3500);
 }
 
-function printReceipt(){
+function receiptEntitlementId(){
+  const number = document.getElementById('rNumber').value.trim();
+  const user = getCurrentUser() || {};
+  return number ? 'receipt:' + String(user.id || user.email || 'account') + ':' + number : '';
+}
+async function authorizeReceiptOutput(){
+  let user = getCurrentUser();
+  if(!user){ showToast('Please sign in again.', 'error'); return false; }
+  const id = receiptEntitlementId();
+  if(!id){ showToast('Enter a receipt number first.', 'error'); return false; }
+
+  // Read current entitlement metadata from the authenticated Supabase session.
+  // The top-bar SINGLE badge only describes the plan; it does not guarantee a remaining credit.
+  const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+  if(!sb){ showToast('Authentication service is unavailable. Please try again.', 'error'); return false; }
+  let authResult;
+  try {
+    authResult = await sb.auth.getUser();
+  } catch(error) {
+    showToast('Could not verify your premium access. Please try again.', 'error'); return false;
+  }
+  const authUser = authResult?.data?.user;
+  if(authResult?.error || !authUser?.id){
+    showToast('Please sign in again to verify your premium access.', 'error'); return false;
+  }
+  const meta = authUser.user_metadata || {};
+  user = {
+    ...user,
+    id: authUser.id,
+    email: authUser.email || user.email || '',
+    plan: String(meta.plan ?? user.plan ?? 'free').toLowerCase(),
+    freePdfCredits: Math.max(0, Number(meta.freePdfCredits ?? user.freePdfCredits ?? 3) || 0),
+    paidSingleCredits: Math.max(0, Number(meta.paidSingleCredits ?? user.paidSingleCredits ?? 0) || 0),
+    unlockedInvoiceIds: Array.isArray(meta.unlockedInvoiceIds) ? meta.unlockedInvoiceIds.map(String) : (Array.isArray(user.unlockedInvoiceIds) ? user.unlockedInvoiceIds.map(String) : [])
+  };
+  user.singleCredits = user.freePdfCredits + user.paidSingleCredits;
+  saveCurrentUser(user);
+
+  if(user.plan === 'lifetime' || user.isAdmin) return true;
+  if(user.unlockedInvoiceIds.includes(id)) return true;
+  if(user.singleCredits <= 0){
+    showToast('No premium credits remain. A $2 credit unlocks one new premium item; $25 Lifetime includes unlimited access.', 'error', 5000);
+    return false;
+  }
+  if(typeof consumeInvoiceCredit !== 'function'){ showToast('Credit service is unavailable. Please try again.', 'error'); return false; }
+  const result = await consumeInvoiceCredit(user, id);
+  if(!result.ok){ showToast((result.error || 'No premium credits remain.') + ' Visit Billing for a $2 credit or $25 Lifetime Access.', 'error', 5000); return false; }
+  showToast('One premium credit used. This receipt is now unlocked for future printing and downloads.', 'success', 4500);
+  return true;
+}
+async function printReceipt(){
+  if(!(await authorizeReceiptOutput())) return;
   document.body.classList.add('print-mode');
   window.print();
   setTimeout(() => document.body.classList.remove('print-mode'), 500);
 }
 
 async function downloadReceiptPDF(){
+  if(!(await authorizeReceiptOutput())) return;
   showToast('Generating PDF…', 'info');
   const el = document.getElementById('receiptDoc');
   try {
