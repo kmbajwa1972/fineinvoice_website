@@ -69,8 +69,18 @@
 
   function unlocked(u, id) {
     if (!u || !id) return false;
-    if (u.plan === 'lifetime') return true;
-    return (u.unlockedInvoiceIds || []).map(String).includes(String(id));
+    if (String(u.plan || '').toLowerCase() === 'lifetime') return true;
+    const key = String(id);
+    // Saved invoices must remain printable/exportable even when all credits are exhausted.
+    // Match the same local saved-invoice store used by the builder's permanent-unlock check.
+    try {
+      if (typeof getInvoices === 'function' && getInvoices().some(invoice =>
+        String(invoice.id) === key || String(invoice.entitlementId || '') === key
+      )) return true;
+    } catch (error) {
+      console.warn('[FineInvoice] Could not check saved invoice access:', error);
+    }
+    return (u.unlockedInvoiceIds || []).map(String).includes(key);
   }
 
   async function saveEntitlement(u, id, source) {
