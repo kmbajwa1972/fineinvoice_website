@@ -224,7 +224,7 @@
 const _u = requireAuth();
 renderUserChip('userChip');
 
-// Basic invoice reports are available to all signed-in plans. Lifetime unlocks revenue analytics and CSV export.
+// Basic counts/status/history stay free. Lifetime unlocks revenue analytics; CSV export also accepts a single premium credit.
 const hasAccess = Boolean(_u && (_u.isAdmin || _u.plan === 'lifetime'));
 if(!hasAccess){
   document.getElementById('gateBanner').style.display = 'flex';
@@ -327,10 +327,17 @@ function renderReports(){
   }).join('');
 }
 
-function exportCSV(){
-  if(!hasAccess){ showToast('CSV export requires the Lifetime plan.', 'error'); return; }
+async function exportCSV(){
   const invoices = filterInvoices(allInvoices);
   if(!invoices.length){ showToast('No invoices to export', 'error'); return; }
+  const user = getCurrentUser() || _u || {};
+  const reportId = 'report:csv:' + currentFilter;
+  const alreadyUnlocked = Array.isArray(user.unlockedInvoiceIds) && user.unlockedInvoiceIds.map(String).includes(reportId);
+  if(!hasAccess && !alreadyUnlocked){
+    if(typeof consumeInvoiceCredit !== 'function'){ showToast('Credit service is unavailable. Please try again.', 'error'); return; }
+    const access = await consumeInvoiceCredit(user, reportId);
+    if(!access.ok){ showToast((access.error || 'No premium credits remain.') + ' A CSV report uses one $2 premium credit; Lifetime includes unlimited access.', 'error', 5000); return; }
+  }
   const rows  = [['Invoice #','Customer','Date','Currency','Amount','Status']];
   invoices.forEach(inv => rows.push([
     inv.invNumber||inv.id||'',
